@@ -211,5 +211,6 @@ bv_ltu = mkBinaryFn bv_lt_len bv_ltu_val
 %foreign (lib_bv "bv_print")
 prim__bv_print : Bits8 -> Bits64 -> PrimIO()
 
+export
 bv_print : BitsVec -> IO()
 bv_print (MkBitsVec len val) = primIO $ prim__bv_print len val

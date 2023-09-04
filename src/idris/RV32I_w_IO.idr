@@ -99,7 +99,7 @@ u_fn ((op, imm, rd), (MkContext mem regf pc)) =
   let imm' = bv_get_range 0 32 $ bv_sll (bv_zero_ext imm) $ MkBitsVec 8 12
       res = case op of 
         LUI => imm'
-        AUIPC => bv_get_range 0 31 $ bv_add pc imm'
+        AUIPC => bv_get_range 0 32 $ bv_add pc imm'
       regf' = regf_write' rd res regf
       pc' = pc_inc pc
   in ((), regf' >>= (\x => update_context mem x pc'))
@@ -129,8 +129,8 @@ run_n (S k) ctx = (snd . rv32i_fwd) ((), ctx) >>= (run_n k)
 
 main : (n: Nat) -> String -> IO()
 main n i_file = 
-  let mem  = mem_load $ i_file ++ "_mem.bin" 
-      regs = mem_load $ i_file ++ "_regs.bin"
+  let mem  = mem_load $ i_file
+      regs = mem_create (4*32)
       pc = MkBitsVec 32 0
   in do 
         (MkContext mem' regs' pc') <- run_n n (MkContext mem regs pc)
@@ -138,6 +138,9 @@ main n i_file =
         _ <- mem_save ((show n) ++ "_regs.bin") regs'
         printLn pc'
         printLn $ decode $ mem_read_word pc' mem'
+        if mem_read_word (MkBitsVec 32 0x1000) mem' == (MkBitsVec 32 0x11111111) 
+          then printLn "pass!"
+          else printLn (regf_read (MkBitsVec 5 3) regs')
 
   
 

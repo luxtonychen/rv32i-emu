@@ -167,7 +167,8 @@ decode bv =
                        (MkBitsVec 3 0x1) => S SH b_15_19 b_20_24 imm
                        (MkBitsVec 3 0x2) => S SW b_15_19 b_20_24 imm
                        _ => NA
-          B' => let imm = bv_compose_4 (31, 32) (7, 8) (25, 31) (8, 12) bv
+          B' => let imm = (bv_concatenate (bv_compose_4 (31, 32) (7, 8) (25, 31) (8, 12) bv)
+                                          (MkBitsVec 1 0))
                in case b_12_14 of
                     (MkBitsVec 3 0x0) => B BEQ  b_15_19 b_20_24 imm
                     (MkBitsVec 3 0x1) => B BNE  b_15_19 b_20_24 imm
