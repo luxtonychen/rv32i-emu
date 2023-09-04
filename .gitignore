@@ -110,4 +110,4 @@ dkms.conf
 
 *.bin
 
-./src/idris/build*
+src/idris/build
