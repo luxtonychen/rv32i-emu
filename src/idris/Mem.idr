@@ -32,13 +32,18 @@ mem_read_word : (addr:BitsVec) -> MemTy -> BitsVec
 mem_read_word (MkBitsVec len val) mem = MkBitsVec 32 $ mem_read_32_val len val mem
 
 export
-mem_write_word : (addr:BitsVec) -> (dat:BitsVec) -> MemTy -> MemTy
-mem_write_word (MkBitsVec len1 val1) (MkBitsVec len2 val2) = mem_write_32 len1 val1 len2 val2
+mem_read_word' : (BitsVec, MemTy) -> (BitsVec, MemTy)
+mem_read_word' ((MkBitsVec len val), mem) = (MkBitsVec 32 $ mem_read_32_val len val mem, mem)
 
 export
-mem_write_word' : (addr:BitsVec) -> (dat:BitsVec) -> MemTy -> IO MemTy
-mem_write_word' (MkBitsVec len1 val1) (MkBitsVec len2 val2) mem 
+mem_write_word : (addr:BitsVec) -> (dat:BitsVec) -> MemTy -> IO MemTy
+mem_write_word (MkBitsVec len1 val1) (MkBitsVec len2 val2) mem 
   = primIO $ prim__mem_write_32 len1 val1 len2 val2 mem
+  
+export
+mem_write_word' : ((BitsVec, BitsVec), MemTy) -> ((), IO MemTy)
+mem_write_word' (((MkBitsVec len1 val1), (MkBitsVec len2 val2)), mem)
+  = ((), primIO $ prim__mem_write_32 len1 val1 len2 val2 mem)
 
 %foreign (lib_mem "mem_diff")
 prim__mem_diff : MemTy -> MemTy -> PrimIO ()
@@ -80,7 +85,7 @@ test : IO()
 test = let mem1 = mem_create (4*32)
            mem2 = mem_create (4*32)
        in do 
-             mem1' <- mem_write_word' (MkBitsVec 8 (31*4)) (MkBitsVec 32 0xFFFFFFFF) mem1
+             mem1' <- mem_write_word (MkBitsVec 8 (31*4)) (MkBitsVec 32 0xFFFFFFFF) mem1
              mem_diff mem1' mem2
              _ <- mem_save "mem_test" mem1'
              mem_free mem1

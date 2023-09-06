@@ -27,5 +27,6 @@ test:
 clean:
 	rm -rf $(LIB_PATH)/*.so
 	rm -rf $(IDRIS_PATH)/*.so
+	rm -rf $(IDRIS_PATH)/*.bin
 	rm -rf $(TEST_BIN)/*.o
 	rm -rf $(TEST_BIN)/*.bin	

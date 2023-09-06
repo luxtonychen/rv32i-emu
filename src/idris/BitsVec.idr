@@ -206,7 +206,7 @@ bv_ltu_val : BinaryValFn
 
 export
 bv_ltu : BitsVec -> BitsVec -> BitsVec
-bv_ltu = mkBinaryFn bv_lt_len bv_ltu_val
+bv_ltu = mkBinaryFn bv_ltu_len bv_ltu_val
 
 %foreign (lib_bv "bv_print")
 prim__bv_print : Bits8 -> Bits64 -> PrimIO()

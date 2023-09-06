@@ -130,7 +130,7 @@ uint8_t bv_sra_len(BV(1), BV(2)) {
 uint64_t bv_sra_val(BV(1), BV(2)) {
   uint8_t sht = (val2) & (MASK8 >> 2) & MASK(len2); //at most lower 6 bits
   return ((val1 & MASK(len1)) >> sht)					\
-    + ((bv_get(len1-1, bv(1))) ? ((FULL << (len1 - sht)) & MASK(len1)) : EMPTY);
+    + ((bv_get(len1-1, bv(1))) ? ((FULL << ((len1 > sht) ? len1 - sht : 0)) & MASK(len1)) : EMPTY);
 }
 
 uint8_t bv_sll_len(BV(1), BV(2)) {

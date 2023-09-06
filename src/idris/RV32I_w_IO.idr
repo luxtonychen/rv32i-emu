@@ -34,7 +34,7 @@ r_fn ((op, rs1, rs2, rd), (MkContext mem regf pc)) =
         SRA =>  bv_get_range 0 32 $ bv_sra op1 op2
         SLT =>  bv_get_range 0 32 $ bv_lt  op1 op2
         SLTU => bv_get_range 0 32 $ bv_ltu op1 op2
-      regf' = regf_write' rd res regf
+      regf' = regf_write rd res regf
       pc'   = pc_inc pc
   in ((), regf' >>= (\x => update_context mem x pc'))
 
@@ -52,7 +52,7 @@ i_fn ((op, rs1, imm, rd), (MkContext mem regf pc)) =
         SRLI  => bv_get_range 0 32 $ bv_srl op1 $ bv_get_range 0 5 op2
         SRAI  => bv_get_range 0 32 $ bv_sra op1 $ bv_get_range 0 5 op2
         SLTI  => bv_get_range 0 32 $ bv_lt  op1 op2
-        SLTIU => bv_get_range 0 32 $ bv_ltu op1 op2
+        SLTIU => bv_get_range 0 32 $ bv_ltu op1 $ bv_get_range 0 32 $ bv_sign_ext op2
         LB    => bv_get_range 0 32 $ bv_sign_ext $ bv_get_range 0 8 mem_data
         LH    => bv_get_range 0 32 $ bv_sign_ext $ bv_get_range 0 16 mem_data
         LW    => mem_data
@@ -62,7 +62,7 @@ i_fn ((op, rs1, imm, rd), (MkContext mem regf pc)) =
       pc' = case op of
         JALR => bv_add op1 $ bv_get_range 0 32 $ bv_sign_ext op2
         _    => pc_inc pc
-      regf' = regf_write' rd res regf
+      regf' = regf_write rd res regf
   in ((), regf' >>= (\x => update_context mem x pc'))
   
 s_fn : ((SOP, BitsVec, BitsVec, BitsVec), Context) -> ((), IO Context)
@@ -76,7 +76,7 @@ s_fn ((op, rs1, rs2, imm), (MkContext mem regf pc)) =
         SH => bv_concatenate (bv_get_range 16 32 mem_data) (bv_get_range 0 16 op2)
         SW => op2
       pc' = pc_inc pc
-      mem' = mem_write_word' addr res mem
+      mem' = mem_write_word addr res mem
   in ((), mem' >>= (\x => update_context x regf pc'))
 
 b_fn : ((BOP, BitsVec, BitsVec, BitsVec), Context) -> ((), IO Context)
@@ -100,14 +100,14 @@ u_fn ((op, imm, rd), (MkContext mem regf pc)) =
       res = case op of 
         LUI => imm'
         AUIPC => bv_get_range 0 32 $ bv_add pc imm'
-      regf' = regf_write' rd res regf
+      regf' = regf_write rd res regf
       pc' = pc_inc pc
   in ((), regf' >>= (\x => update_context mem x pc'))
 
 j_fn : ((JOP, BitsVec, BitsVec), Context) -> ((), IO Context)
 j_fn  ((op, imm, rd), (MkContext mem regf pc)) = 
   let pc' = bv_get_range 0 32 $ bv_add pc $ bv_get_range 0 32 $ bv_sign_ext imm
-      regf' = regf_write' rd (pc_inc pc) regf
+      regf' = regf_write rd (pc_inc pc) regf
   in ((), regf' >>= (\x => update_context mem x pc'))
 
 rv32i_fwd : ((), Context) -> ((), IO Context)
@@ -136,6 +136,7 @@ main n i_file =
         (MkContext mem' regs' pc') <- run_n n (MkContext mem regs pc)
         _ <- mem_save ((show n) ++ "_mem.bin") mem'
         _ <- mem_save ((show n) ++ "_regs.bin") regs'
+        printLn i_file
         printLn pc'
         printLn $ decode $ mem_read_word pc' mem'
         if mem_read_word (MkBitsVec 32 0x1000) mem' == (MkBitsVec 32 0x11111111) 

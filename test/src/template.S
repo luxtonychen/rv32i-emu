@@ -19,7 +19,8 @@ trap:	j trap;
 	.section .data.entry
 	.global data
 data:
-	.space 256 * 4
+	.space 128 * 4
+	.space 128 * 4
 	.global data_end
 data_end:	
 	
