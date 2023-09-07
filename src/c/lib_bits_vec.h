@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define FULL      0xFFFFFFFFFFFFFFFF
 #define EMPTY     0x0000000000000000

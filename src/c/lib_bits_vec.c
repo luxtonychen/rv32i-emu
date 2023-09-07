@@ -167,8 +167,29 @@ void _bv_to_string(BV(1), char* buf) {
     buf[63-i] = (val1 & msk)>0 ? '1' : '0';
     msk = msk << 1;
   }
-
   buf[64] = '\0';
+}
+
+char* bv_to_string(BV(1)) {
+  char buf1[65] = {[0 ... 63] = '-'};
+  char buf2[65+15] = {[0 ... 79] = '\0'};
+  char* res = malloc(256 * sizeof(char));
+  int i, j=0;
+  
+  _bv_to_string(bv(1), buf1);
+
+  for(i=0; i<64; i++) {
+    if ((i % 4 == 0) && (i != 0) && (i != 64)){
+      buf2[j] = ' ';
+      j++;
+    }
+    buf2[j] = buf1[i];
+    j++;
+  }
+  
+  sprintf(res, "0x%016lx: %02d ", val1, len1);
+  strcat(res, buf2);
+  return res;
 }
 
 void bv_print(BV(1)) {
