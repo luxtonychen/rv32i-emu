@@ -193,9 +193,9 @@ bv_ltu_val : BinaryValFn
 export
 bv_ltu : {n: _} -> BitsVec n -> BitsVec n -> BitsVec 1
 bv_ltu {n} (MkBitsVec v1) (MkBitsVec v2) = 
-    let n' = lenToBits n 
-      val = bv_ltu_val n' v1 n' v2 
-  in MkBitsVec val
+    let n'  = lenToBits n 
+        val = bv_ltu_val n' v1 n' v2 
+    in MkBitsVec val
   
 %foreign (lib_bv "bv_to_string")
 bv_to_string' : Bits8 -> Bits64 -> String
