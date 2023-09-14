@@ -8,9 +8,9 @@ import Data.List
 
 record Context where
   constructor MkContext
-  mem  : MemTy
-  regf : RegFile
-  pc   : BitsVec 32
+  1 mem  : MemTy
+  1 regf : RegFile
+  1 pc   : BitsVec 32
 
 update_context : MemTy -> RegFile -> BitsVec 32 -> IO Context 
 update_context mem regf pc = pure $ MkContext mem regf pc
