@@ -111,4 +111,5 @@ dkms.conf
 *.bin
 
 src/idris/build
+src/idris/remove
 src/idris/Mealy.idr
