@@ -86,6 +86,12 @@ lemma (FS (FS x)) (FS y) {prf} = FLTESucc (lemma (FS x) y {prf = prf})
     (|*|) {n = (S k)} (FS x) (FS y) | res' | LT = let 0 p' = lemma res' (weaken (the (Fin (S k)) last)) {prf = p} 
                                                   in tight res' {prf = p'}
     (|*|) {n = (S k)} (FS x) (FS y) | res' | _ = last
+    
+export
+finToBits64: {n: _} -> Fin (S n) -> Bits64
+finToBits64 {n = 0} FZ = 0
+finToBits64 {n = (S k)} FZ = 0
+finToBits64 {n = (S k)} (FS x) = 1 + finToBits64 x
 
 -- l5 : (the LenTy 32) = (16 |+| 16)
 -- l5 = ?rhs

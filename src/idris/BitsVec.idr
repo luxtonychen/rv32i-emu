@@ -1,7 +1,7 @@
 module BitsVec
 
 import System.FFI
-import Data.Fin
+import public Data.Fin
 import Builtin
 import FinUtils
 
@@ -19,6 +19,17 @@ finToBits: {n: _} -> Fin (S n) -> Bits8
 finToBits {n = 0} FZ = 0
 finToBits {n = (S k)} FZ = 0
 finToBits {n = (S k)} (FS x) = 1 + finToBits x
+
+public export
+bv2Fin : {m: _} -> (ub: Nat) -> BitsVec m -> Maybe (Fin (S ub))
+bv2Fin ub (MkBitsVec val) with (compare val $ finToBits64 {n=ub} last) proof p
+  bv2Fin ub (MkBitsVec val) | GT = Nothing
+  bv2Fin 0 (MkBitsVec val)     | _  = Just FZ
+  bv2Fin (S k) (MkBitsVec 0  ) | _  = Just FZ
+  bv2Fin {m} (S k) (MkBitsVec val) | _  with (bv2Fin {m=m} k (MkBitsVec (val-1))) 
+    bv2Fin {m} (S k) (MkBitsVec val) | _ | Just x = Just $ FS $ x
+    bv2Fin {m} (S k) (MkBitsVec val) | _ | Nothing = Nothing
+
 
 export
 lenToBits : LenTy -> Bits8
