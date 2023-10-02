@@ -70,3 +70,6 @@ proj1 (val # r) = let () = consume r in val
 public export
 proj2 : (Res a (\v => b)) -@ b
 proj2 (val # r) = r
+
+lin : (a -> b) -> (a -@ b)
+lin f = believe_me f

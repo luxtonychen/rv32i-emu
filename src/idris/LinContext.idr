@@ -9,12 +9,33 @@ record LinContext (a, b: Type) where
   1 ctx : b
   
 public export
+fromLDPair: (Res a (const b)) -@ LinContext a b
+fromLDPair (val # r) = MkLC val r
+
+Functor (\ty => LinContext ty c) where
+  map f (MkLC val ctx) = MkLC (f val) ctx
+
+LinFunctor (LinContext v) where
+  lin_map f (MkLC val c) = MkLC val (f c)
+  
+bimap : (a -> b) -> (c -@ d) -> LinContext a c -@ LinContext b d
+bimap f g (MkLC val ctx) = MkLC (f val) (g ctx)
+
+public export
 apply_on_val : (a -> b) -> (LinContext a c) -@ (LinContext b c)
-apply_on_val f (MkLC val ctx) = MkLC (f val) ctx
+apply_on_val f = bimap f id
 
 infixr 9 <**>
 infixr 9 <<<
-infixr 9 <-<
+infixr 9 <->
+infixr 9 |>
+infixr 9 <|
+infixr 9 <||>
+infixr 9 >@
+
+export
+(>@) : (a -> b) -> (c -@ d) -> LinContext a c -@ LinContext b d
+(>@) = bimap
 
 export
 proj_val : (Consumable b) => LinContext a b -@ a
@@ -37,20 +58,31 @@ export
                                      in MkLC res (ctx1' # ctx2')
 
 export
-(<-<) : (LinContext c c1 -@ LinContext d c1) 
-     -> (LinContext a c1 -@ LinContext b c1) 
+(<->) : (LinContext a c1 -@ LinContext b c1) 
+     -> (LinContext c c1 -@ LinContext d c1) 
      -> (LinContext (a, c) c1 -@ LinContext (b, d) c1)
-(<-<) f g (MkLC (x, y) ctx) = let MkLC x' ctx'  = g $ MkLC x ctx 
-                                  MkLC y' ctx'' = f $ MkLC y ctx' 
+(<->) f g (MkLC (x, y) ctx) = let MkLC x' ctx'  = f $ MkLC x ctx 
+                                  MkLC y' ctx'' = g $ MkLC y ctx' 
                               in MkLC (x', y') ctx''
 
+
 export
-(<|>) : (LinContext a c1 -@ LinContext b c1) 
-     -> (LinContext c c2 -@ LinContext d c2) 
-     -> (LinContext (a, c) (LPair c1 c2) -@ LinContext (b, d) (LPair c1 c2))
-(<|>) f g (MkLC (v1, v2) (ctx1 # ctx2)) = let r1 = f (MkLC v1 ctx1)
-                                              r2 = g (MkLC v2 ctx2)
-                                          in r1 <**> r2
+(|>) : (a -> b) -> (LinContext c c1 -@ LinContext d c1)
+    -> LinContext (a, c) c1 -@ LinContext (b, d) c1
+(|>) f g = (bimap f id) <-> g
+
+export
+(<|) : (LinContext c c1 -@ LinContext d c1) -> (a -> b) 
+    -> LinContext (c, a) c1 -@ LinContext (d, b) c1
+(<|) f g = (bimap swap id) . (g |> f) . (bimap swap id)
+
+export
+(<||>) : (LinContext a c1 -@ LinContext b c1) 
+      -> (LinContext c c2 -@ LinContext d c2) 
+      -> (LinContext (a, c) (LPair c1 c2) -@ LinContext (b, d) (LPair c1 c2))
+(<||>) f g (MkLC (v1, v2) (ctx1 # ctx2)) = let r1 = f (MkLC v1 ctx1)
+                                               r2 = g (MkLC v2 ctx2)
+                                           in r1 <**> r2
                                           
 -- TODO: Implement elimination by meta programming
 export

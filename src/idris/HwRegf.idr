@@ -1,9 +1,9 @@
 module HwRegf
 
-import LinRegf
+import public LinRegf
 import LinContext
 import BitsVec
-import HwSignal
+import public HwSignal
 
 
 regf_read' : RegIdx -> LinRegF -@ Res Dat $ const LinRegF
@@ -17,7 +17,6 @@ regf_write' Abst _ regf = regf
 regf_write' _ Abst regf = regf
 regf_write' (V addr) (V dat) regf = regf_write addr dat regf
 
-public export
 hwRegF : LinContext (RegIdx, RegIdx, RegIdx, Dat) LinRegF
       -@ LinContext (Dat, Dat) LinRegF
 hwRegF (MkLC (rs1, rs2, rd, wdat) regf) = 
@@ -25,7 +24,18 @@ hwRegF (MkLC (rs1, rs2, rd, wdat) regf) =
       d2 # regf2 = regf_read'  rs2 regf1
       regf_o     = regf_write' rd wdat regf2
   in MkLC (d1, d2) regf_o
-  
+
+public export
+hw_regf_read : LinContext (BitsVec 5, BitsVec 5) LinRegF -@ LinContext (BitsVec 32, BitsVec 32) LinRegF
+hw_regf_read (MkLC (r1, r2) regf) = 
+  let dat1 # regf'  = regf_read r1 regf
+      dat2 # regf'' = regf_read r2 regf'
+  in MkLC (dat1, dat2) regf''
+
+public export
+hw_regf_write : LinContext (BitsVec 5, BitsVec 32) LinRegF -@ LinContext () LinRegF
+hw_regf_write (MkLC (rd, dat) regf) = MkLC () (regf_write rd dat regf)
+                  
 hw_abst : (f : Dat -> Dat -> Dat)
        -> LinContext (RegIdx, RegIdx, RegIdx) LinRegF
        -@ LinContext () LinRegF

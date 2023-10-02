@@ -78,7 +78,16 @@ bv_zero_ext {n} (MkBitsVec val) =
   let n'   = lenToBits n 
       val' = (bv_zero_ext_val n' val)
   in MkBitsVec val'
-  
+
+%foreign (lib_bv "bv_neg_val")
+bv_neg_val : UnaryValFn
+
+export
+bv_neg : {n: _} -> BitsVec n -> BitsVec n
+bv_neg {n} (MkBitsVec v1) = 
+  let n' = lenToBits n 
+      val = bv_neg_val n' v1 
+  in MkBitsVec val
     
 %foreign (lib_bv "bv_and_val")
 bv_and_val : BinaryValFn
@@ -181,6 +190,16 @@ bv_sll {n} {m} (MkBitsVec v1) (MkBitsVec v2) =
   let n' = lenToBits n 
       m' = lenToBits m
       val = bv_sll_val n' v1 n' v2 
+  in MkBitsVec val
+
+%foreign (lib_bv "bv_eq_val")
+bv_eq_val : BinaryValFn
+
+export
+bv_eq : {n: _} -> BitsVec n -> BitsVec n -> BitsVec 1
+bv_eq {n} (MkBitsVec v1) (MkBitsVec v2) = 
+  let n' = lenToBits n 
+      val = bv_eq_val n' v1 n' v2 
   in MkBitsVec val
 
 %foreign (lib_bv "bv_lt_val")

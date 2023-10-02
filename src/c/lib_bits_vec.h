@@ -32,6 +32,10 @@ uint8_t bv_zero_ext_len(BV());
 
 uint64_t bv_zero_ext_val(BV());
 
+uint8_t bv_neg_len(BV(1));
+
+uint64_t bv_neg_val(BV(1));
+
 uint8_t bv_and_len(BV(1), BV(2));
 
 uint64_t bv_and_val(BV(1), BV(2));
@@ -75,6 +79,10 @@ uint64_t bv_sll_val(BV(1), BV(2));
 uint8_t bv_lt_len(BV(1), BV(2));
 
 uint64_t bv_lt_val(BV(1), BV(2));
+
+uint8_t bv_eq_len(BV(1), BV(2));
+
+uint64_t bv_eq_val(BV(1), BV(2));
 
 uint8_t bv_ltu_len(BV(1), BV(2));
 
