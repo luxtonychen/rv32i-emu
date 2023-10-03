@@ -156,7 +156,9 @@ uint8_t bv_lt_len(BV(1), BV(2)) {
 }
 
 uint64_t bv_lt_val(BV(1), BV(2)) {
-  return ((int64_t) (MASK(len1) & bv_sign_ext_val(bv(1))) < (MASK(len2) & bv_sign_ext_val(bv(2)) ? 1 : 0;
+  uint64_t _val1 = MASK(len1) & val1;
+  uint64_t _val2 = MASK(len2) & val2;
+  return (((int64_t) bv_sign_ext_val(len1, _val1)) < ((int64_t) bv_sign_ext_val(len2, _val2))) ? 1 : 0;
 }
 
 uint8_t bv_eq_len(BV(1), BV(2)) {
@@ -164,7 +166,9 @@ uint8_t bv_eq_len(BV(1), BV(2)) {
 }
 
 uint64_t bv_eq_val(BV(1), BV(2)) {
-  return ((int64_t) (MASK(len1) & bv_sign_ext_val(bv(1))) == (MASK(len2) & bv_sign_ext_val(bv(2)) ? 1 : 0;
+  uint64_t _val1 = MASK(len1) & val1;
+  uint64_t _val2 = MASK(len2) & val2;
+  return (((int64_t) bv_sign_ext_val(len1, _val1)) == ((int64_t) bv_sign_ext_val(len2, _val2))) ? 1 : 0;
 }
 
 uint8_t bv_ltu_len(BV(1), BV(2)) {
