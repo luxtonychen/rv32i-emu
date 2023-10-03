@@ -45,11 +45,16 @@ Show IOP2 where
   show LHU   = "LHU  "
 
 public export
-data SOP = SB | SH | SW
+data SOP1 = SW
 
-Show SOP where
+public export
+data SOP2 = SB | SH
+
+Show SOP2 where
   show SB = "SB   "
   show SH = "SH   "
+
+Show SOP1 where
   show SW = "SW   "
 
 public export
@@ -81,7 +86,8 @@ data Inst : Type where
   R  : (op:ROP)  -> (rs1:BitsVec 5)  -> (rs2:BitsVec 5)  -> (rd:BitsVec 5)   -> Inst
   I1 : (op:IOP1) -> (rs1:BitsVec 5)  -> (imm:BitsVec 12) -> (rd:BitsVec 5)   -> Inst
   I2 : (op:IOP2) -> (rs1:BitsVec 5)  -> (imm:BitsVec 12) -> (rd:BitsVec 5)   -> Inst
-  S  : (op:SOP)  -> (rs1:BitsVec 5)  -> (rs2:BitsVec 5)  -> (imm:BitsVec 12) -> Inst
+  S1 : (op:SOP1)  -> (rs1:BitsVec 5)  -> (rs2:BitsVec 5)  -> (imm:BitsVec 12) -> Inst
+  S2 : (op:SOP2)  -> (rs1:BitsVec 5)  -> (rs2:BitsVec 5)  -> (imm:BitsVec 12) -> Inst
   B  : (op:BOP)  -> (rs1:BitsVec 5)  -> (rs2:BitsVec 5)  -> (imm:BitsVec 13) -> Inst
   U  : (op:UOP)  -> (imm:BitsVec 20) -> (rd:BitsVec 5)   -> Inst
   J  : (op:JOP)  -> (imm:BitsVec 21) -> (rd:BitsVec 5)   -> Inst
@@ -95,7 +101,9 @@ Show Inst where
     = (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
   show (I2 op (MkBitsVec rs1) (MkBitsVec imm) (MkBitsVec rd)) 
     = (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
-  show (S op (MkBitsVec rs1) (MkBitsVec rs2) (MkBitsVec imm)) 
+  show (S1 op (MkBitsVec rs1) (MkBitsVec rs2) (MkBitsVec imm)) 
+    = (show op) ++ " M[x" ++ (show rs1) ++ " + #" ++ (show imm) ++ "] x" ++ (show rs2)
+  show (S2 op (MkBitsVec rs1) (MkBitsVec rs2) (MkBitsVec imm)) 
     = (show op) ++ " M[x" ++ (show rs1) ++ " + #" ++ (show imm) ++ "] x" ++ (show rs2)
   show (B op (MkBitsVec rs1) (MkBitsVec rs2) (MkBitsVec imm)) 
     = (show op) ++ " x" ++ (show rs1) ++ " x" ++ (show rs2) ++ " #" ++ (show imm)
@@ -184,9 +192,9 @@ decode bv =
                         _ => NA
            S' => let imm = bv_concatenate b_25_31 b_7_11
                  in case b_12_14 of
-                        (MkBitsVec 0x0) => S SB b_15_19 b_20_24 imm
-                        (MkBitsVec 0x1) => S SH b_15_19 b_20_24 imm
-                        (MkBitsVec 0x2) => S SW b_15_19 b_20_24 imm
+                        (MkBitsVec 0x0) => S2 SB b_15_19 b_20_24 imm
+                        (MkBitsVec 0x1) => S2 SH b_15_19 b_20_24 imm
+                        (MkBitsVec 0x2) => S1 SW b_15_19 b_20_24 imm
                         _ => NA
            B' => let imm = (bv_concatenate 
                              (bv_compose_4 (31, 32) (7, 8) (25, 31) (8, 12) bv)
