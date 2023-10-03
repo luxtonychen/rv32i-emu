@@ -20,9 +20,12 @@ Show ROP where
   show SLTU = "SLTU " 
 
 public export
-data IOP = ADDI | XORI | ORI | ANDI | SLLI | SRLI | SRAI | SLTI | SLTIU | LB | LH | LW | LBU | LHU | JALR
+data IOP1 = ADDI | XORI | ORI | ANDI | SLLI | SRLI | SRAI | SLTI | SLTIU | JALR
 
-Show IOP where 
+public export
+data IOP2 =  LB | LH | LW | LBU | LHU 
+
+Show IOP1 where 
   show ADDI  = "ADDI "
   show XORI  = "XORI "
   show ORI   = "ORI  "
@@ -32,12 +35,14 @@ Show IOP where
   show SRAI  = "SRAI "
   show SLTI  = "SLTI "
   show SLTIU = "SLTIU"
+  show JALR  = "JALR "
+
+Show IOP2 where 
   show LB    = "LB   "
   show LH    = "LH   "
   show LW    = "LW   "
   show LBU   = "LBU  "
   show LHU   = "LHU  "
-  show JALR  = "JALR "
 
 public export
 data SOP = SB | SH | SW
@@ -73,19 +78,22 @@ Show JOP where
 
 public export
 data Inst : Type where
-  R : (op:ROP) -> (rs1:BitsVec 5)  -> (rs2:BitsVec 5)  -> (rd:BitsVec 5)   -> Inst
-  I : (op:IOP) -> (rs1:BitsVec 5)  -> (imm:BitsVec 12) -> (rd:BitsVec 5)   -> Inst
-  S : (op:SOP) -> (rs1:BitsVec 5)  -> (rs2:BitsVec 5)  -> (imm:BitsVec 12) -> Inst
-  B : (op:BOP) -> (rs1:BitsVec 5)  -> (rs2:BitsVec 5)  -> (imm:BitsVec 13) -> Inst
-  U : (op:UOP) -> (imm:BitsVec 20) -> (rd:BitsVec 5)   -> Inst
-  J : (op:JOP) -> (imm:BitsVec 21) -> (rd:BitsVec 5)   -> Inst
+  R  : (op:ROP)  -> (rs1:BitsVec 5)  -> (rs2:BitsVec 5)  -> (rd:BitsVec 5)   -> Inst
+  I1 : (op:IOP1) -> (rs1:BitsVec 5)  -> (imm:BitsVec 12) -> (rd:BitsVec 5)   -> Inst
+  I2 : (op:IOP2) -> (rs1:BitsVec 5)  -> (imm:BitsVec 12) -> (rd:BitsVec 5)   -> Inst
+  S  : (op:SOP)  -> (rs1:BitsVec 5)  -> (rs2:BitsVec 5)  -> (imm:BitsVec 12) -> Inst
+  B  : (op:BOP)  -> (rs1:BitsVec 5)  -> (rs2:BitsVec 5)  -> (imm:BitsVec 13) -> Inst
+  U  : (op:UOP)  -> (imm:BitsVec 20) -> (rd:BitsVec 5)   -> Inst
+  J  : (op:JOP)  -> (imm:BitsVec 21) -> (rd:BitsVec 5)   -> Inst
   NA : Inst -- not valid
 
 public export  
 Show Inst where
   show (R op (MkBitsVec rs1) (MkBitsVec rs2) (MkBitsVec rd)) 
     = (show op) ++ " x" ++ (show rs1) ++ " x" ++ (show rs2) ++ " x" ++ (show rd)
-  show (I op (MkBitsVec rs1) (MkBitsVec imm) (MkBitsVec rd)) 
+  show (I1 op (MkBitsVec rs1) (MkBitsVec imm) (MkBitsVec rd)) 
+    = (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
+  show (I2 op (MkBitsVec rs1) (MkBitsVec imm) (MkBitsVec rd)) 
     = (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
   show (S op (MkBitsVec rs1) (MkBitsVec rs2) (MkBitsVec imm)) 
     = (show op) ++ " M[x" ++ (show rs1) ++ " + #" ++ (show imm) ++ "] x" ++ (show rs2)
@@ -154,25 +162,25 @@ decode bv =
                        _ => NA
            I' => let imm = bv_concatenate b_25_31 b_20_24
                  in case b_12_14 of
-                        (MkBitsVec 0x0) => I ADDI b_15_19 imm b_7_11
-                        (MkBitsVec 0x1) => I SLLI b_15_19 imm b_7_11
-                        (MkBitsVec 0x2) => I SLTI b_15_19 imm b_7_11
-                        (MkBitsVec 0x3) => I SLTIU b_15_19 imm b_7_11
-                        (MkBitsVec 0x4) => I XORI b_15_19 imm b_7_11
+                        (MkBitsVec 0x0) => I1 ADDI b_15_19 imm b_7_11
+                        (MkBitsVec 0x1) => I1 SLLI b_15_19 imm b_7_11
+                        (MkBitsVec 0x2) => I1 SLTI b_15_19 imm b_7_11
+                        (MkBitsVec 0x3) => I1 SLTIU b_15_19 imm b_7_11
+                        (MkBitsVec 0x4) => I1 XORI b_15_19 imm b_7_11
                         (MkBitsVec 0x5) => case b_25_31 of 
-                                                (MkBitsVec 0x00) => I SRLI b_15_19 imm b_7_11
-                                                (MkBitsVec 0x20) => I SRAI b_15_19 imm b_7_11
+                                                (MkBitsVec 0x00) => I1 SRLI b_15_19 imm b_7_11
+                                                (MkBitsVec 0x20) => I1 SRAI b_15_19 imm b_7_11
                                                 _ => NA
-                        (MkBitsVec 0x6) => I ORI b_15_19 imm b_7_11
-                        (MkBitsVec 0x7) => I ANDI b_15_19 imm b_7_11
+                        (MkBitsVec 0x6) => I1 ORI b_15_19 imm b_7_11
+                        (MkBitsVec 0x7) => I1 ANDI b_15_19 imm b_7_11
                         _ => NA
            L' => let imm = bv_concatenate b_25_31 b_20_24
                  in case b_12_14 of
-                        (MkBitsVec 0x0) => I LB  b_15_19 imm b_7_11
-                        (MkBitsVec 0x1) => I LH  b_15_19 imm b_7_11
-                        (MkBitsVec 0x2) => I LW  b_15_19 imm b_7_11
-                        (MkBitsVec 0x4) => I LBU b_15_19 imm b_7_11
-                        (MkBitsVec 0x5) => I LHU b_15_19 imm b_7_11
+                        (MkBitsVec 0x0) => I2 LB  b_15_19 imm b_7_11
+                        (MkBitsVec 0x1) => I2 LH  b_15_19 imm b_7_11
+                        (MkBitsVec 0x2) => I2 LW  b_15_19 imm b_7_11
+                        (MkBitsVec 0x4) => I2 LBU b_15_19 imm b_7_11
+                        (MkBitsVec 0x5) => I2 LHU b_15_19 imm b_7_11
                         _ => NA
            S' => let imm = bv_concatenate b_25_31 b_7_11
                  in case b_12_14 of
@@ -195,7 +203,7 @@ decode bv =
                              (bv_compose_4 (31, 32) (12, 20) (20, 21) (21, 31) bv)
                              (the (BitsVec 1) (MkBitsVec 0))) 
                  in J JAL imm b_7_11
-           J2 => I JALR b_15_19 (bv_get_range 20 32 bv) b_7_11
+           J2 => I1 JALR b_15_19 (bv_get_range 20 32 bv) b_7_11
            U1 => U LUI (bv_get_range 12 32 bv) b_7_11
            U2 => U AUIPC (bv_get_range 12 32 bv) b_7_11
            _ => NA
