@@ -15,7 +15,7 @@ interface IsReg (reg : Type -> Type) | reg where
   
 -- An Implementation
 
-export  
+public export  
 record LinReg vTy where
   constructor Reg
   val : vTy
