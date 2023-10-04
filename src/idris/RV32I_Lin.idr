@@ -159,10 +159,10 @@ s2_write_fn1: LinContext (SOP2, BitsVec 5, BitsVec 32, BitsVec 32) Context
 s2_write_fn1 (MkLC (op, rs2, pc_, addr) (mem # regf # pc)) = 
   let
     pc' = reg_write addr pc
-    1 sign = Reg (MkBitsVec 1)
-    1 saved_op = Reg (Right op)
-    1 saved_pc = Reg pc_
-    1 saved_reg_idx = Reg rs2
+    1 sign = reg_make (MkBitsVec 1)
+    1 saved_op = reg_make (Right op)
+    1 saved_pc = reg_make pc_
+    1 saved_reg_idx = reg_make rs2
   in MkLC () ((mem # regf # pc') # (sign # saved_op # saved_reg_idx # saved_pc))
 
 s2_read_fn2: LinContext () ContextExt
