@@ -67,8 +67,8 @@ i1_read_fn1: LinContext (IOP1, BitsVec 5, BitsVec 32, BitsVec 5, BitsVec 32) Con
           -@ LinContext (IOP1, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32) ContextExt
 i1_read_fn1 (MkLC (op, rs1, imm, rd, pc_) $ (mem # regf # pc) # rest) =  
   let op1 # regf'   = regf_read rs1 regf
-      imm'          = (bv_cast_32 . bv_sign_ext) imm
-  in MkLC (op, op1, imm', rd, pc_) $ (mem # regf' # pc) # rest
+--      imm'          = (bv_cast_32 . bv_sign_ext) imm
+  in MkLC (op, op1, imm, rd, pc_) $ (mem # regf' # pc) # rest
 
 i1_fn: (IOP1, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
     -> (BitsVec 5, BitsVec 32, BitsVec 32)
@@ -262,11 +262,12 @@ j_write_fn (MkLC (rd, res, pc_) $ (mem # regf # pc) # rest)
 
 rv32i : LinContext () ContextExt -@ LinContext () ContextExt
 rv32i (MkLC () ((mem # regf # pc) # (sign # op # reg_idx # saved_pc))) = 
-  let pc_ # pc' = reg_read pc
+  let pc_ # pc'       = reg_read pc
       mem_data # mem' = mem_read pc_ mem
-      sign_ # sign' = reg_read sign
-      op_ # op' = reg_read op
-      1 ctx' = (mem' # regf # pc') # (sign' # op' # reg_idx # saved_pc)
+      (MkInst op_' rs1 rs2 rd imm) = decode (MkBitsVec 0) (MkBitsVec 0) mem_data
+      sign_ # sign'   = reg_read sign
+      op_ # op'       = reg_read op
+      1 ctx'          = (mem' # regf # pc') # (sign' # op' # reg_idx # saved_pc)
   in if (sign_ == (MkBitsVec 1))
      then case op_ of 
             (Left op)  => i_write_fn 
@@ -279,46 +280,47 @@ rv32i (MkLC () ((mem # regf # pc) # (sign # op # reg_idx # saved_pc))) =
                         . s2_read_fn2  
                         $ MkLC (op, pc_, mem_data) ctx' -- <- to break to two stage
                   
-     else case (decode' (MkBitsVec 0) (MkBitsVec 0) mem_data) of
-            (MkInst (R_ op) rs1 rs2 rd imm)  => r_write_fn 
-                                              . (r_fn >@ id) 
-                                              . r_read_fn 
-                                              $ MkLC (op, rs1, rs2, rd, pc_)  ctx'
-                                 
-            (MkInst (I1_ op) rs1 rs2 rd imm)  => i_write_fn 
-                                               . (i1_fn >@ id) 
-                                               . i1_read_fn1 
-                                               $ MkLC (op, rs1, imm, rd, pc_)  ctx'
-                                 
-            (MkInst (I2_ op) rs1 rs2 rd imm)  => i2_write_fn1
-                                               . (i2_fn1 >@ id) 
-                                               . i2_read_fn1 
-                                               $ MkLC (op, rs1, imm, rd, pc_)  ctx'
-                                 
-            (MkInst (S1_ op) rs1 rs2 rd imm)  => s_write_fn 
-                                               . (s1_fn >@ id)
-                                               . s1_read_fn1 
-                                               $ MkLC (op, rs1, rs2, imm, pc_) ctx' 
+     else case (op_') of
+            (R op) => r_write_fn 
+                     . (r_fn >@ id) 
+                     . r_read_fn 
+                     $ MkLC (op, rs1, rs2, rd, pc_)  ctx'
+                  
+            (I1 op)  => i_write_fn 
+                      . (i1_fn >@ id) 
+                      . i1_read_fn1 
+                      $ MkLC (op, rs1, imm, rd, pc_)  ctx'
+                  
+            (I2 op)  => i2_write_fn1
+                      . (i2_fn1 >@ id) 
+                      . i2_read_fn1 
+                      $ MkLC (op, rs1, imm, rd, pc_)  ctx'
+                  
+            (S1 op)  => s_write_fn 
+                      . (s1_fn >@ id)
+                      . s1_read_fn1 
+                      $ MkLC (op, rs1, rs2, imm, pc_) ctx' 
             
-            (MkInst (S2_ op) rs1 rs2 rd imm) => s2_write_fn1 -- <-
-                                              . (s2_fn1 >@ id)
-                                              . s2_read_fn1 
-                                              $ MkLC (op, rs1, rs2, imm, pc_) ctx' 
-                                                      
-            (MkInst (B_ op) rs1 rs2 rd imm) => b_write_fn 
-                                             . (b_fn >@ id) 
-                                             . b_read_fn 
-                                             $ MkLC (op, rs1, rs2, imm, pc_) ctx'
-                                 
-            (MkInst (U_ op) rs1 rs2 rd imm) => u_write_fn 
-                                             . (u_fn >@ id) 
-                                             . u_read_fn 
-                                             $ MkLC (op, imm, rd, pc_) ctx'
-                                 
-            (MkInst (J_ op) rs1 rs2 rd imm) => j_write_fn 
-                                             . (j_fn >@ id) 
-                                             . j_read_fn 
-                                             $ MkLC (op, imm, rd, pc_) ctx'
+            (S2 op) => s2_write_fn1 -- <-
+                     . (s2_fn1 >@ id)
+                     . s2_read_fn1 
+                     $ MkLC (op, rs1, rs2, imm, pc_) ctx' 
+                             
+            (B op)=> b_write_fn 
+                    . (b_fn >@ id) 
+                    . b_read_fn 
+                    $ MkLC (op, rs1, rs2, imm, pc_) ctx'
+                  
+            (U op)=> u_write_fn 
+                    . (u_fn >@ id) 
+                    . u_read_fn 
+                    $ MkLC (op, imm, rd, pc_) ctx'
+                  
+            (J op) => j_write_fn 
+                    . (j_fn >@ id) 
+                    . j_read_fn 
+                    $ MkLC (op, imm, rd, pc_) ctx'
+                    
             _ => (MkLC () ctx')
 
 eval: String -> Nat -> IO ()
@@ -352,7 +354,7 @@ eval i_file n =
           then putStrLn "pass!"
           else do
             _ <- fPutStrLn stderr "Next inst:"
-            _ <- fPutStrLn stderr (show $ decode $ next_inst)
+            _ <- fPutStrLn stderr (show $ decode (MkBitsVec 0) (MkBitsVec 0) next_inst)
             _ <- fPutStrLn stderr ("Value in gp (x3, Count of tests): " ++ (show v))
             _ <- fPutStrLn stderr "fail!"
             pure ()

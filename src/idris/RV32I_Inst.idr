@@ -82,36 +82,24 @@ Show JOP where
   show JAL = "JAL  "
 
 public export
-data Inst: Type where
-  R : (op: ROP)   -> (rs1: BitsVec 5)  -> (rs2: BitsVec 5)  -> (rd: BitsVec 5)  -> Inst
-  I1: (op: IOP1)  -> (rs1: BitsVec 5)  -> (imm: BitsVec 12) -> (rd: BitsVec 5)  -> Inst
-  I2: (op: IOP2)  -> (rs1: BitsVec 5)  -> (imm: BitsVec 12) -> (rd: BitsVec 5)  -> Inst
-  S1: (op: SOP1)  -> (rs1: BitsVec 5)  -> (rs2: BitsVec 5)  -> (imm:BitsVec 12) -> Inst
-  S2: (op: SOP2)  -> (rs1: BitsVec 5)  -> (rs2: BitsVec 5)  -> (imm:BitsVec 12) -> Inst
-  B : (op: BOP)   -> (rs1: BitsVec 5)  -> (rs2: BitsVec 5)  -> (imm:BitsVec 13) -> Inst
-  U : (op: UOP)   -> (imm: BitsVec 20) -> (rd : BitsVec 5)  -> Inst
-  J : (op: JOP)   -> (imm: BitsVec 21) -> (rd : BitsVec 5)  -> Inst
-  NA: Inst -- not valid
-
-public export
 data OP : Type where
-  R_ : (op: ROP)  -> OP
-  I1_: (op: IOP1) -> OP
-  I2_: (op: IOP2) -> OP
-  S1_: (op: SOP1) -> OP
-  S2_: (op: SOP2) -> OP
-  B_ : (op: BOP)  -> OP
-  U_ : (op: UOP)  -> OP
-  J_ : (op: JOP)  -> OP
-  NA_: OP
+  R : (op: ROP)  -> OP
+  I1: (op: IOP1) -> OP
+  I2: (op: IOP2) -> OP
+  S1: (op: SOP1) -> OP
+  S2: (op: SOP2) -> OP
+  B : (op: BOP)  -> OP
+  U : (op: UOP)  -> OP
+  J : (op: JOP)  -> OP
+  NA: OP
   
 ||| A union, instead of a disjoint union (coproduct $+$), of decoded fields.
 ||| For a coproduct A + B, we first derive the product varient $t \times A \times B$, 
 ||| then identify objects between them
 public export
-record Inst' where
+record Inst where
   constructor MkInst
-  op : OP
+  op  : OP
   rs1 : BitsVec 5
   rs2 : BitsVec 5
   rd  : BitsVec 5
@@ -119,42 +107,26 @@ record Inst' where
   
 bv_sign_ext_32: {m:_} -> BitsVec m -> BitsVec 32
 bv_sign_ext_32 = (bv_get_range 0 32) .  bv_sign_ext
-  
-||| Merge a coproduct / embedding co-product to product
-||| @ dr default value of reg idxs
-||| @ di default value of imm
-merge: (dr: BitsVec 5) -> (di: BitsVec 32) -> Inst -> Inst'
-merge dr di (R op rs1 rs2 rd)   = MkInst (R_  op) rs1 rs2 rd di
-merge dr di (I1 op rs1 imm rd)  = MkInst (I1_ op) rs1 dr  rd (bv_sign_ext_32 imm)
-merge dr di (I2 op rs1 imm rd)  = MkInst (I2_ op) rs1 dr  rd (bv_sign_ext_32 imm)
-merge dr di (S1 op rs1 rs2 imm) = MkInst (S1_ op) rs1 rs2 dr (bv_sign_ext_32 imm)
-merge dr di (S2 op rs1 rs2 imm) = MkInst (S2_ op) rs1 rs2 dr (bv_sign_ext_32 imm)
-merge dr di (B op rs1 rs2 imm)  = MkInst (B_  op) rs1 rs2 dr (bv_sign_ext_32 imm)
-merge dr di (U op imm rd)       = MkInst (U_  op) dr  dr  rd (bv_get_range 0 32 
-                                                             $ bv_sll {m = 8} (bv_zero_ext imm) 
-                                                             $ MkBitsVec 12)
-merge dr di (J op imm rd)       = MkInst (J_  op) dr dr rd (bv_sign_ext_32 imm)
-merge dr di NA = MkInst NA_ dr dr dr di
-
-public export  
+   
+public export
 Show Inst where
-  show (R op (MkBitsVec rs1) (MkBitsVec rs2) (MkBitsVec rd)) 
+  show (MkInst (R op) rs1 rs2 rd imm)
     = (show op) ++ " x" ++ (show rs1) ++ " x" ++ (show rs2) ++ " x" ++ (show rd)
-  show (I1 op (MkBitsVec rs1) (MkBitsVec imm) (MkBitsVec rd)) 
+  show (MkInst (I1 op) rs1 rs2 rd imm) 
     = (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
-  show (I2 op (MkBitsVec rs1) (MkBitsVec imm) (MkBitsVec rd)) 
+  show (MkInst (I2 op) rs1 rs2 rd imm)
     = (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
-  show (S1 op (MkBitsVec rs1) (MkBitsVec rs2) (MkBitsVec imm)) 
+  show (MkInst (S1 op) rs1 rs2 rd imm)
     = (show op) ++ " M[x" ++ (show rs1) ++ " + #" ++ (show imm) ++ "] x" ++ (show rs2)
-  show (S2 op (MkBitsVec rs1) (MkBitsVec rs2) (MkBitsVec imm)) 
+  show (MkInst (S2 op) rs1 rs2 rd imm)
     = (show op) ++ " M[x" ++ (show rs1) ++ " + #" ++ (show imm) ++ "] x" ++ (show rs2)
-  show (B op (MkBitsVec rs1) (MkBitsVec rs2) (MkBitsVec imm)) 
+  show (MkInst (B op) rs1 rs2 rd imm)
     = (show op) ++ " x" ++ (show rs1) ++ " x" ++ (show rs2) ++ " #" ++ (show imm)
-  show (U op (MkBitsVec imm) (MkBitsVec rd)) 
+  show (MkInst (U op) rs1 rs2 rd imm)
     = (show op) ++ " x" ++ (show rd) ++ " #" ++ (show imm)
-  show (J op (MkBitsVec imm) (MkBitsVec rd)) 
+  show (MkInst (J op) rs1 rs2 rd imm)
     = (show op) ++ " x" ++ (show rd) ++ " #" ++ (show imm)
-  show NA = "NA"
+  show (MkInst NA rs1 rs2 rd imm) = "NA"
 
 
 data OpCode' = R' | I' | L' | S' | B' | U1 | U2 | J1 | J2 | NA'
@@ -184,101 +156,9 @@ bv_compose_4 (l1, h1) (l2, h2) (l3, h3) (l4, h4) bv =
  (bv_concatenate (bv_get_range l3 h3 bv) 
                  (bv_get_range l4 h4 bv)))
 
-public export
-decode : BitsVec 32 -> Inst
-decode bv = 
-  let b_0_6   = bv_get_range 0  7  bv
-      b_7_11  = bv_get_range 7  12 bv
-      b_12_14 = bv_get_range 12 15 bv
-      b_15_19 = bv_get_range 15 20 bv
-      b_20_24 = bv_get_range 20 25 bv
-      b_25_31 = bv_get_range 25 32 bv
-      opcode  = get_op_code b_0_6
-  in case opcode of
-           R' => let rop : Maybe ROP = case b_12_14 of
-                                         (MkBitsVec 0x0) => case b_25_31 of
-                                                              (MkBitsVec 0x00) => Just ADD
-                                                              (MkBitsVec 0x20) => Just SUB 
-                                                              _ => Nothing
-                                         (MkBitsVec 0x1) => Just SLL  
-                                         (MkBitsVec 0x2) => Just SLT  
-                                         (MkBitsVec 0x3) => Just SLTU 
-                                         (MkBitsVec 0x4) => Just XOR 
-                                         (MkBitsVec 0x5) => case b_25_31 of 
-                                                              (MkBitsVec 0x00) => Just SRL 
-                                                              (MkBitsVec 0x20) => Just SRA
-                                                              _ => Nothing
-                                         (MkBitsVec 0x6) => Just OR 
-                                         (MkBitsVec 0x7) => Just AND
-                                         _ => Nothing
-                 in case rop of 
-                      (Just x) => R x b_15_19 b_20_24 b_7_11
-                      Nothing  => NA
-                      
-           I' => let imm = bv_concatenate b_25_31 b_20_24
-                     iop : Maybe IOP1 = case b_12_14 of
-                                          (MkBitsVec 0x0) => Just ADDI 
-                                          (MkBitsVec 0x1) => Just SLLI 
-                                          (MkBitsVec 0x2) => Just SLTI 
-                                          (MkBitsVec 0x3) => Just SLTIU
-                                          (MkBitsVec 0x4) => Just XORI 
-                                          (MkBitsVec 0x5) => case b_25_31 of 
-                                                               (MkBitsVec 0x00) => Just SRLI
-                                                               (MkBitsVec 0x20) => Just SRAI
-                                                               _ => Nothing
-                                          (MkBitsVec 0x6) => Just ORI 
-                                          (MkBitsVec 0x7) => Just ANDI
-                                          _ => Nothing
-                 in case iop of
-                      (Just x) => I1 x b_15_19 imm b_7_11
-                      Nothing  => NA
-                      
-           L' => let imm = bv_concatenate b_25_31 b_20_24
-                     lop : Maybe IOP2 = case b_12_14 of
-                                          (MkBitsVec 0x0) => Just LB 
-                                          (MkBitsVec 0x1) => Just LH 
-                                          (MkBitsVec 0x2) => Just LW 
-                                          (MkBitsVec 0x4) => Just LBU
-                                          (MkBitsVec 0x5) => Just LHU 
-                                          _ => Nothing
-                 in case lop of
-                      (Just x) => I2 x b_15_19 imm b_7_11
-                      Nothing  => NA
-                      
-           S' => let imm = bv_concatenate b_25_31 b_7_11
-                 in case b_12_14 of
-                      (MkBitsVec 0x0) => S2 SB b_15_19 b_20_24 imm
-                      (MkBitsVec 0x1) => S2 SH b_15_19 b_20_24 imm
-                      (MkBitsVec 0x2) => S1 SW b_15_19 b_20_24 imm
-                      _ => NA
-                   
-           B' => let imm = (bv_concatenate 
-                             (bv_compose_4 (31, 32) (7, 8) (25, 31) (8, 12) bv)
-                             (the (BitsVec 1) (MkBitsVec 0)))
-                     bop : Maybe BOP = case b_12_14 of
-                                         (MkBitsVec 0x0) => Just BEQ  
-                                         (MkBitsVec 0x1) => Just BNE 
-                                         (MkBitsVec 0x4) => Just BLT 
-                                         (MkBitsVec 0x5) => Just BGE 
-                                         (MkBitsVec 0x6) => Just BLTU
-                                         (MkBitsVec 0x7) => Just BGEU 
-                                         _ => Nothing
-                 in case bop of
-                      (Just x) => B x b_15_19 b_20_24 imm
-                      Nothing => NA
-                     
-           J1 => let imm = (bv_concatenate 
-                             (bv_compose_4 (31, 32) (12, 20) (20, 21) (21, 31) bv)
-                             (the (BitsVec 1) (MkBitsVec 0))) 
-                 in J JAL imm b_7_11
-           J2 => I1 JALR b_15_19 (bv_get_range 20 32 bv) b_7_11
-           U1 => U LUI (bv_get_range 12 32 bv) b_7_11
-           U2 => U AUIPC (bv_get_range 12 32 bv) b_7_11
-           _ => NA
-
 export
-decode': (dr: BitsVec 5) -> (di: BitsVec 32) -> BitsVec 32 -> Inst'
-decode' dr di bv = 
+decode: (dr: BitsVec 5) -> (di: BitsVec 32) -> BitsVec 32 -> Inst
+decode dr di bv = 
   let b_0_6   = bv_get_range 0  7  bv
       b_7_11  = bv_get_range 7  12 bv
       b_12_14 = bv_get_range 12 15 bv
@@ -304,8 +184,8 @@ decode' dr di bv =
                                          (MkBitsVec 0x7) => Just AND
                                          _ => Nothing
                  in case rop of 
-                      (Just x) => MkInst (R_ x) b_15_19 b_20_24 b_7_11 di
-                      Nothing  => MkInst NA_ dr dr dr di
+                      (Just x) => MkInst (R x) b_15_19 b_20_24 b_7_11 di
+                      Nothing  => MkInst NA dr dr dr di
                       
            I' => let imm = bv_sign_ext_32 $ bv_concatenate b_25_31 b_20_24
                      iop : Maybe IOP1 = case b_12_14 of
@@ -322,8 +202,8 @@ decode' dr di bv =
                                           (MkBitsVec 0x7) => Just ANDI
                                           _ => Nothing
                  in case iop of
-                      (Just x) => MkInst (I1_ x) b_15_19 dr b_7_11 imm
-                      Nothing  => MkInst NA_ dr dr dr di
+                      (Just x) => MkInst (I1 x) b_15_19 dr b_7_11 imm
+                      Nothing  => MkInst NA dr dr dr di
                       
            L' => let imm = bv_sign_ext_32 $ bv_concatenate b_25_31 b_20_24
                      lop : Maybe IOP2 = case b_12_14 of
@@ -334,15 +214,15 @@ decode' dr di bv =
                                           (MkBitsVec 0x5) => Just LHU 
                                           _ => Nothing
                  in case lop of
-                      (Just x) => MkInst (I2_ x) b_15_19 dr b_7_11 imm
-                      Nothing  => MkInst NA_ dr dr dr di
+                      (Just x) => MkInst (I2 x) b_15_19 dr b_7_11 imm
+                      Nothing  => MkInst NA dr dr dr di
                       
            S' => let imm = bv_sign_ext_32 $ bv_concatenate b_25_31 b_7_11
                  in case b_12_14 of
-                      (MkBitsVec 0x0) => MkInst (S2_ SB) b_15_19 b_20_24 dr imm
-                      (MkBitsVec 0x1) => MkInst (S2_ SH) b_15_19 b_20_24 dr imm
-                      (MkBitsVec 0x2) => MkInst (S1_ SW) b_15_19 b_20_24 dr imm
-                      _ => MkInst NA_ dr dr dr di
+                      (MkBitsVec 0x0) => MkInst (S2 SB) b_15_19 b_20_24 dr imm
+                      (MkBitsVec 0x1) => MkInst (S2 SH) b_15_19 b_20_24 dr imm
+                      (MkBitsVec 0x2) => MkInst (S1 SW) b_15_19 b_20_24 dr imm
+                      _ => MkInst NA dr dr dr di
                    
            B' => let imm = bv_sign_ext_32 $ (bv_concatenate 
                                               (bv_compose_4 (31, 32) (7, 8) (25, 31) (8, 12) bv)
@@ -356,21 +236,25 @@ decode' dr di bv =
                                          (MkBitsVec 0x7) => Just BGEU 
                                          _ => Nothing
                  in case bop of
-                      (Just x) => MkInst (B_ x) b_15_19 b_20_24 dr imm
-                      Nothing => MkInst NA_ dr dr dr di
+                      (Just x) => MkInst (B x) b_15_19 b_20_24 dr imm
+                      Nothing => MkInst NA dr dr dr di
                      
            J1 => let imm = bv_sign_ext_32 
                          $ (bv_concatenate 
                              (bv_compose_4 (31, 32) (12, 20) (20, 21) (21, 31) bv)
                              (the (BitsVec 1) (MkBitsVec 0))) 
-                 in MkInst (J_ JAL) dr dr b_7_11 imm
-           J2 => MkInst (I1_ JALR) b_15_19 dr b_7_11 (bv_sign_ext_32 $ bv_get_range 20 32 bv)
+                 in MkInst (J JAL) dr dr b_7_11 imm
+                 
+           J2 => MkInst (I1 JALR) b_15_19 dr b_7_11 (bv_sign_ext_32 $ bv_get_range 20 32 bv)
+           
            U1 => let imm = (bv_get_range 0 32 
                           $ bv_sll {m = 8} (bv_zero_ext (bv_get_range 12 32 bv)) 
                           $ MkBitsVec 12)
-                 in MkInst (U_ LUI) dr dr b_7_11 imm
+                 in MkInst (U LUI) dr dr b_7_11 imm
+                 
            U2 => let imm = (bv_get_range 0 32 
                           $ bv_sll {m = 8} (bv_zero_ext (bv_get_range 12 32 bv)) 
                           $ MkBitsVec 12)
-                 in MkInst (U_ AUIPC) dr dr b_7_11 imm
-           _ => MkInst NA_ dr dr dr di
+                 in MkInst (U AUIPC) dr dr b_7_11 imm
+                 
+           _ => MkInst NA dr dr dr di
