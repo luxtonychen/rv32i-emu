@@ -63,7 +63,7 @@ r_write_fn: LinContext (BitsVec 5, BitsVec 32, BitsVec 32) ContextExt
 r_write_fn (MkLC (rd, res, pc_) $ (mem # regf # pc) # rest) 
   = MkLC () $ (mem # regf_write rd res regf # reg_write pc_ pc) # rest
 
-i1_read_fn1: LinContext (IOP1, BitsVec 5, BitsVec 12, BitsVec 5, BitsVec 32) ContextExt
+i1_read_fn1: LinContext (IOP1, BitsVec 5, BitsVec 32, BitsVec 5, BitsVec 32) ContextExt
           -@ LinContext (IOP1, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32) ContextExt
 i1_read_fn1 (MkLC (op, rs1, imm, rd, pc_) $ (mem # regf # pc) # rest) =  
   let op1 # regf'   = regf_read rs1 regf
@@ -89,12 +89,11 @@ i1_fn (op, op1, imm, rd, pc_) =
         _    => bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
   in (rd, res, pc_')
   
-i2_read_fn1: LinContext (IOP2, BitsVec 5, BitsVec 12, BitsVec 5, BitsVec 32) ContextExt
+i2_read_fn1: LinContext (IOP2, BitsVec 5, BitsVec 32, BitsVec 5, BitsVec 32) ContextExt
           -@ LinContext (IOP2, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32) ContextExt
 i2_read_fn1 (MkLC (op, rs1, imm, rd, pc_) $ (mem # regf # pc) # rest) =  
   let op1 # regf'   = regf_read rs1 regf
-      imm'          = (bv_cast_32 . bv_sign_ext) imm
-  in MkLC (op, op1, imm', rd, pc_) $ (mem # regf' # pc) # rest
+  in MkLC (op, op1, imm, rd, pc_) $ (mem # regf' # pc) # rest
 
 i2_fn1 : (IOP2, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
       -> (IOP2, BitsVec 32, BitsVec 5, BitsVec 32)
@@ -138,13 +137,12 @@ i_write_fn (MkLC (rd, res, pc_) $ (mem # regf # pc) # (sign # rest))
   = MkLC () $ (mem # regf_write rd res regf # reg_write pc_ pc) 
             # (reg_write (MkBitsVec 0) sign # rest)
 
-s1_read_fn1: LinContext (SOP1, BitsVec 5, BitsVec 5, BitsVec 12, BitsVec 32) ContextExt
+s1_read_fn1: LinContext (SOP1, BitsVec 5, BitsVec 5, BitsVec 32, BitsVec 32) ContextExt
           -@ LinContext (SOP1, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32) ContextExt
 s1_read_fn1 (MkLC (op, rs1, rs2, imm, pc_) $ (mem # regf # pc) # rest) =
   let op1 # regf'  = regf_read rs1 regf 
       op2 # regf'' = regf_read rs2 regf'
-      imm'         = (bv_cast_32 . bv_sign_ext) imm
-  in MkLC (op, op1, op2, imm', pc_) $ (mem # regf'' # pc) # rest
+  in MkLC (op, op1, op2, imm, pc_) $ (mem # regf'' # pc) # rest
   
 s1_fn: (SOP1, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)
     -> (BitsVec 32, BitsVec 32, BitsVec 32)
@@ -153,12 +151,11 @@ s1_fn (op, op1, op2, imm, pc_) =
       pc_' = (bv_cast_32 $ pc_ `bv_add` MkBitsVec 4)
   in (pc_', addr, op2)
 
-s2_read_fn1: LinContext (SOP2, BitsVec 5, BitsVec 5, BitsVec 12, BitsVec 32) ContextExt
+s2_read_fn1: LinContext (SOP2, BitsVec 5, BitsVec 5, BitsVec 32, BitsVec 32) ContextExt
           -@ LinContext (SOP2, BitsVec 32, BitsVec 5, BitsVec 32, BitsVec 32) ContextExt
 s2_read_fn1 (MkLC (op, rs1, rs2, imm, pc_) ((mem # regf # pc) # rest)) =
   let op1 # regf'  = regf_read rs1 regf 
-      imm'         = (bv_cast_32 . bv_sign_ext) imm
-  in MkLC (op, op1, rs2, imm', pc_) $ (mem # regf' # pc) # rest
+  in MkLC (op, op1, rs2, imm, pc_) $ (mem # regf' # pc) # rest
  
 
 s2_fn1: (SOP2, BitsVec 32, BitsVec 5, BitsVec 32, BitsVec 32)
@@ -202,13 +199,12 @@ s_write_fn (MkLC (pc_, addr, res) $ (mem # regf # pc) # (sign # rest))
   = MkLC () $ (mem_write addr res mem # regf # reg_write pc_ pc) 
              # (reg_write (MkBitsVec 0) sign # rest)
 
-b_read_fn : LinContext (BOP, BitsVec 5, BitsVec 5, BitsVec 13, BitsVec 32) ContextExt 
+b_read_fn : LinContext (BOP, BitsVec 5, BitsVec 5, BitsVec 32, BitsVec 32) ContextExt 
          -@ LinContext (BOP, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32) ContextExt
 b_read_fn (MkLC (op, rs1, rs2, imm, pc_) $ (mem # regf # pc) # rest) = 
   let op1 # regf'  = regf_read rs1 regf 
       op2 # regf'' = regf_read rs2 regf'
-      imm' = (bv_get_range 0 32 $ bv_sign_ext imm)
-  in (MkLC (op, op1, op2, imm', pc_) $ (mem # regf'' # pc) # rest)
+  in (MkLC (op, op1, op2, imm, pc_) $ (mem # regf'' # pc) # rest)
       
 b_fn : (BOP, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)-> (BitsVec 32)
 b_fn (op, op1, op2, imm', pc_) = 
@@ -227,11 +223,10 @@ b_write_fn : LinContext (BitsVec 32) ContextExt -@ LinContext () ContextExt
 b_write_fn (MkLC pc_ $ (mem # regf # pc) # rest)
   = (MkLC () $ (mem # regf # reg_write pc_ pc) # rest)
          
-u_read_fn: LinContext (UOP, BitsVec 20, BitsVec 5, BitsVec 32) ContextExt
+u_read_fn: LinContext (UOP, BitsVec 32, BitsVec 5, BitsVec 32) ContextExt
         -@ LinContext (UOP, BitsVec 32, BitsVec 5, BitsVec 32) ContextExt
 u_read_fn (MkLC (op, imm, rd, pc_) $ (mem # regf # pc) # rest) = 
-  let imm' = bv_cast_32 $ bv_sll {m = 8} (bv_zero_ext imm) $ MkBitsVec 12
-  in (MkLC (op, imm', rd, pc_) $ (mem # regf # pc) # rest)
+  (MkLC (op, imm, rd, pc_) $ (mem # regf # pc) # rest)
 
 u_fn : (UOP, BitsVec 32, BitsVec 5, BitsVec 32)
     -> (BitsVec 5, BitsVec 32, BitsVec 32)
@@ -247,11 +242,10 @@ u_write_fn : LinContext (BitsVec 5, BitsVec 32, BitsVec 32) ContextExt
 u_write_fn (MkLC (rd, res, pc_) $ (mem # regf # pc) # rest)
   = (MkLC () $ (mem # regf_write rd res regf # reg_write pc_ pc) # rest)
 
-j_read_fn: LinContext (JOP, BitsVec 21, BitsVec 5, BitsVec 32) ContextExt
+j_read_fn: LinContext (JOP, BitsVec 32, BitsVec 5, BitsVec 32) ContextExt
         -@ LinContext (JOP, BitsVec 32, BitsVec 5, BitsVec 32) ContextExt
-j_read_fn (MkLC (op, imm, rd, pc_) $ (mem # regf # pc) # rest) = 
-  let imm' = (bv_cast_32 $ bv_sign_ext imm)
-  in (MkLC (op, imm', rd, pc_) $ (mem # regf # pc) # rest)
+j_read_fn (MkLC (op, imm, rd, pc_) $ (mem # regf # pc) # rest) 
+  = (MkLC (op, imm, rd, pc_) $ (mem # regf # pc) # rest)
     
 j_fn: (JOP, BitsVec 32, BitsVec 5, BitsVec 32)
    -> (BitsVec 5, BitsVec 32, BitsVec 32)
@@ -285,56 +279,56 @@ rv32i (MkLC () ((mem # regf # pc) # (sign # op # reg_idx # saved_pc))) =
                         . s2_read_fn2  
                         $ MkLC (op, pc_, mem_data) ctx' -- <- to break to two stage
                   
-     else case (decode mem_data) of
-            (R  op rs1 rs2 rd)  => r_write_fn 
-                                 . (r_fn >@ id) 
-                                 . r_read_fn 
-                                 $ MkLC (op, rs1, rs2, rd, pc_)  ctx'
+     else case (decode' (MkBitsVec 0) (MkBitsVec 0) mem_data) of
+            (MkInst (R_ op) rs1 rs2 rd imm)  => r_write_fn 
+                                              . (r_fn >@ id) 
+                                              . r_read_fn 
+                                              $ MkLC (op, rs1, rs2, rd, pc_)  ctx'
                                  
-            (I1 op rs1 imm rd)  => i_write_fn 
-                                 . (i1_fn >@ id) 
-                                 . i1_read_fn1 
-                                 $ MkLC (op, rs1, imm, rd, pc_)  ctx'
+            (MkInst (I1_ op) rs1 rs2 rd imm)  => i_write_fn 
+                                               . (i1_fn >@ id) 
+                                               . i1_read_fn1 
+                                               $ MkLC (op, rs1, imm, rd, pc_)  ctx'
                                  
-            (I2 op rs1 imm rd)  => i2_write_fn1
-                                 . (i2_fn1 >@ id) 
-                                 . i2_read_fn1 
-                                 $ MkLC (op, rs1, imm, rd, pc_)  ctx'
+            (MkInst (I2_ op) rs1 rs2 rd imm)  => i2_write_fn1
+                                               . (i2_fn1 >@ id) 
+                                               . i2_read_fn1 
+                                               $ MkLC (op, rs1, imm, rd, pc_)  ctx'
                                  
-            (S1 op rs1 rs2 imm) => s_write_fn 
-                                 . (s1_fn >@ id)
-                                 . s1_read_fn1 
-                                 $ MkLC (op, rs1, rs2, imm, pc_) ctx' 
+            (MkInst (S1_ op) rs1 rs2 rd imm)  => s_write_fn 
+                                               . (s1_fn >@ id)
+                                               . s1_read_fn1 
+                                               $ MkLC (op, rs1, rs2, imm, pc_) ctx' 
             
-            (S2 op rs1 rs2 imm) => s2_write_fn1 -- <-
-                                 . (s2_fn1 >@ id)
-                                 . s2_read_fn1 
-                                 $ MkLC (op, rs1, rs2, imm, pc_) ctx' 
+            (MkInst (S2_ op) rs1 rs2 rd imm) => s2_write_fn1 -- <-
+                                              . (s2_fn1 >@ id)
+                                              . s2_read_fn1 
+                                              $ MkLC (op, rs1, rs2, imm, pc_) ctx' 
                                                       
-            (B  op rs1 rs2 imm) => b_write_fn 
-                                 . (b_fn >@ id) 
-                                 . b_read_fn 
-                                 $ MkLC (op, rs1, rs2, imm, pc_) ctx'
+            (MkInst (B_ op) rs1 rs2 rd imm) => b_write_fn 
+                                             . (b_fn >@ id) 
+                                             . b_read_fn 
+                                             $ MkLC (op, rs1, rs2, imm, pc_) ctx'
                                  
-            (U  op imm rd)      => u_write_fn 
-                                 . (u_fn >@ id) 
-                                 . u_read_fn 
-                                 $ MkLC (op, imm, rd, pc_) ctx'
+            (MkInst (U_ op) rs1 rs2 rd imm) => u_write_fn 
+                                             . (u_fn >@ id) 
+                                             . u_read_fn 
+                                             $ MkLC (op, imm, rd, pc_) ctx'
                                  
-            (J  op imm rd)      => j_write_fn 
-                                 . (j_fn >@ id) 
-                                 . j_read_fn 
-                                 $ MkLC (op, imm, rd, pc_) ctx'
+            (MkInst (J_ op) rs1 rs2 rd imm) => j_write_fn 
+                                             . (j_fn >@ id) 
+                                             . j_read_fn 
+                                             $ MkLC (op, imm, rd, pc_) ctx'
             _ => (MkLC () ctx')
 
 eval: String -> Nat -> IO ()
 eval i_file n = 
   let mem = mem_load i_file
       reg = mem_create (4*32)
-      pc : PC = reg_make $ MkBitsVec 0
-      1 sign = reg_make (MkBitsVec 0)
-      1 op = reg_make (Left LB)
-      1 reg_idx = reg_make (MkBitsVec 5)
+      pc : PC    = reg_make (MkBitsVec 0)
+      1 sign     = reg_make (MkBitsVec 0)
+      1 op       = reg_make (Left LB)
+      1 reg_idx  = reg_make (MkBitsVec 5)
       1 saved_pc = reg_make (MkBitsVec 0)
       1 ctx = (mem # reg # pc)  # (sign # op # reg_idx # saved_pc)
       
