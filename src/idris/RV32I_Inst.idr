@@ -156,9 +156,9 @@ bv_compose_4 (l1, h1) (l2, h2) (l3, h3) (l4, h4) bv =
  (bv_concatenate (bv_get_range l3 h3 bv) 
                  (bv_get_range l4 h4 bv)))
 
-export
-decode: (dr: BitsVec 5) -> (di: BitsVec 32) -> BitsVec 32 -> Inst
-decode dr di bv = 
+
+decode': (dr: BitsVec 5) -> (di: BitsVec 32) -> BitsVec 32 -> Inst
+decode' dr di bv = 
   let b_0_6   = bv_get_range 0  7  bv
       b_7_11  = bv_get_range 7  12 bv
       b_12_14 = bv_get_range 12 15 bv
@@ -258,3 +258,6 @@ decode dr di bv =
                  in MkInst (U AUIPC) dr dr b_7_11 imm
                  
            _ => MkInst NA dr dr dr di
+export
+decode : (BitsVec 32) -> Inst 
+decode = decode' (MkBitsVec 0) (MkBitsVec 0)
