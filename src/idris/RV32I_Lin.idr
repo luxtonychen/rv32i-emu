@@ -33,23 +33,19 @@ ContextExt = LPair Context
 
 bv_cast_32 : {n: _} -> BitsVec n -> BitsVec 32
 bv_cast_32 = bv_get_range 0 32  
-   
-r_fn: (ROP, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
-   -> (BitsVec 5, BitsVec 32, BitsVec 32)
-r_fn (op, op1, op2, rd, pc_) = 
-  let res = case op of
-              (RR ADD)  => bv_cast_32 . uncurry bv_add $ (op1, op2) 
-              (RR SUB)  => bv_cast_32 . uncurry bv_sub $ (op1, op2)
-              (RR XOR)  => uncurry bv_xor $ (op1, op2)
-              (RR OR)   => uncurry bv_or  $ (op1, op2)           
-              (RR AND)  => uncurry bv_and $ (op1, op2)            
-              (RR SLL)  => uncurry bv_sll $ (op1, op2)            
-              (RR SRL)  => uncurry bv_srl $ (op1, op2)            
-              (RR SRA)  => uncurry bv_sra $ (op1, op2)            
-              (RR SLT)  => bv_cast_32  . uncurry bv_lt  $ (op1, op2)
-              (RR SLTU) => bv_cast_32  . uncurry bv_ltu $ (op1, op2)
-      pc_' = bv_cast_32 $ bv_add (MkBitsVec 4) pc_
-  in (rd, res, pc_')
+
+arith : AOP -> (BitsVec 32, BitsVec 32) -> BitsVec 32
+arith ADD  = bv_cast_32 . uncurry bv_add
+arith SUB  = bv_cast_32 . uncurry bv_sub
+arith XOR  = uncurry bv_xor
+arith OR   = uncurry bv_or 
+arith AND  = uncurry bv_and   
+arith SLL  = uncurry bv_sll   
+arith SRL  = uncurry bv_srl   
+arith SRA  = uncurry bv_sra   
+arith SLT  = bv_cast_32  . uncurry bv_lt    
+arith SLTU = bv_cast_32  . uncurry bv_ltu
+       
   
 r_write_fn: LinContext (BitsVec 5, BitsVec 32, BitsVec 32) ContextExt
          -@ LinContext () ContextExt
@@ -57,23 +53,15 @@ r_write_fn (MkLC (rd, res, pc_) $ (mem # regf # pc) # rest)
   = MkLC () $ (mem # regf_write rd res regf # reg_write pc_ pc) # rest
 
 
-i1_fn: (IOP1, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
-    -> (BitsVec 5, BitsVec 32, BitsVec 32)
-i1_fn (op, op1, imm, rd, pc_) = 
+r_i1_fn: ((Either ROP IOP1), BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
+      -> (BitsVec 5, BitsVec 32, BitsVec 32)
+r_i1_fn (op, op1, op2, imm, rd, pc_) = 
   let res = case op of
-              (RI ADD)  => bv_cast_32 $ bv_add op1 imm
-              (RI SUB)  => bv_cast_32 . uncurry bv_sub $ (op1, imm) 
-              (RI XOR)  => bv_cast_32 $ bv_xor op1 imm
-              (RI OR)   => bv_cast_32 $ bv_or  op1 imm
-              (RI AND)  => bv_cast_32 $ bv_and op1 imm
-              (RI SLL)  => bv_cast_32 $ bv_sll op1 $ bv_get_range 0 5 imm
-              (RI SRL)  => bv_cast_32 $ bv_srl op1 $ bv_get_range 0 5 imm
-              (RI SRA)  => bv_cast_32 $ bv_sra op1 $ bv_get_range 0 5 imm
-              (RI SLT)  => bv_cast_32 $ bv_lt  op1 imm
-              (RI SLTU) => bv_cast_32 $ bv_ltu op1 imm
+              (Left  $ RR op')  => arith op' (op1, op2)
+              (Right $ RI op') => arith op' (op1, imm)
       pc_' = bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
   in (rd, res, pc_')
-
+  
 ij_fn: (IOPJ, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
     -> (BitsVec 5, BitsVec 32, BitsVec 32)
 ij_fn (op, op1, imm, rd, pc_) = 
@@ -240,12 +228,12 @@ rv32i (MkLC () ctx) =
             
      else case (opc) of
             (R op) => r_write_fn 
-                    . (r_fn >@ id) 
-                    $ MkLC (op, op1, op2, rd, pc_)  ctx'
+                    . (r_i1_fn >@ id) 
+                    $ MkLC (Left op, op1, op2, imm, rd, pc_)  ctx'
                   
             (I1 op) => i_write_fn 
-                     . (i1_fn >@ id)  
-                     $ MkLC (op, op1, imm, rd, pc_)  ctx'
+                     . (r_i1_fn >@ id)  
+                     $ MkLC (Right op, op1, op2, imm, rd, pc_)  ctx'
             
             (IJ op) => i_write_fn 
                      . (ij_fn >@ id)  
