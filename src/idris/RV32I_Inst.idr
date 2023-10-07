@@ -5,9 +5,9 @@ import Data.Fin
 import FinUtils
 
 public export
-data ROP = ADD | SUB | XOR | OR | AND | SLL | SRL | SRA | SLT | SLTU
+data AOP = ADD | SUB | XOR | OR | AND | SLL | SRL | SRA | SLT | SLTU
 
-Show ROP where
+Show AOP where
   show ADD  = "ADD  " 
   show SUB  = "SUB  " 
   show XOR  = "XOR  " 
@@ -20,21 +20,37 @@ Show ROP where
   show SLTU = "SLTU " 
 
 public export
-data IOP1 = ADDI | XORI | ORI | ANDI | SLLI | SRLI | SRAI | SLTI | SLTIU | JALR
+data ROP : Type where
+  RR : AOP -> ROP
+
+Show ROP where
+  show (RR x)  = show x
+
+public export
+data IOP1 : Type where 
+  RI : AOP -> IOP1
+
+--= ADDI | XORI | ORI | ANDI | SLLI | SRLI | SRAI | SLTI | SLTIU 
+
+public export
+data IOPJ = JALR
 
 public export
 data IOP2 =  LB | LH | LW | LBU | LHU 
 
 Show IOP1 where 
-  show ADDI  = "ADDI "
-  show XORI  = "XORI "
-  show ORI   = "ORI  "
-  show ANDI  = "ANDI "
-  show SLLI  = "SLLI "
-  show SRLI  = "SRLI "
-  show SRAI  = "SRAI "
-  show SLTI  = "SLTI "
-  show SLTIU = "SLTIU"
+  show (RI ADD ) = "ADDI "
+  show (RI SUB ) = "SUBI " --will not be used
+  show (RI XOR ) = "XORI "
+  show (RI OR  ) = "ORI  "
+  show (RI AND ) = "ANDI "
+  show (RI SLL ) = "SLLI "
+  show (RI SRL ) = "SRLI "
+  show (RI SRA ) = "SRAI "
+  show (RI SLT ) = "SLTI "
+  show (RI SLTU) = "SLTIU"
+
+Show IOPJ where
   show JALR  = "JALR "
 
 Show IOP2 where 
@@ -85,6 +101,7 @@ public export
 data OP : Type where
   R : (op: ROP)  -> OP
   I1: (op: IOP1) -> OP
+  IJ: (op: IOPJ) -> OP
   I2: (op: IOP2) -> OP
   S1: (op: SOP1) -> OP
   S2: (op: SOP2) -> OP
@@ -113,6 +130,8 @@ Show Inst where
   show (MkInst (R op) rs1 rs2 rd imm)
     = (show op) ++ " x" ++ (show rs1) ++ " x" ++ (show rs2) ++ " x" ++ (show rd)
   show (MkInst (I1 op) rs1 rs2 rd imm) 
+    = (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
+  show (MkInst (IJ op) rs1 rs2 rd imm) 
     = (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
   show (MkInst (I2 op) rs1 rs2 rd imm)
     = (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
@@ -169,19 +188,19 @@ decode' dr di bv =
   in case opcode of
            R' => let rop : Maybe ROP = case b_12_14 of
                                          (MkBitsVec 0x0) => case b_25_31 of
-                                                              (MkBitsVec 0x00) => Just ADD
-                                                              (MkBitsVec 0x20) => Just SUB 
+                                                              (MkBitsVec 0x00) => Just (RR ADD)
+                                                              (MkBitsVec 0x20) => Just (RR SUB) 
                                                               _ => Nothing
-                                         (MkBitsVec 0x1) => Just SLL  
-                                         (MkBitsVec 0x2) => Just SLT  
-                                         (MkBitsVec 0x3) => Just SLTU 
-                                         (MkBitsVec 0x4) => Just XOR 
+                                         (MkBitsVec 0x1) => Just $ RR SLL  
+                                         (MkBitsVec 0x2) => Just $ RR SLT  
+                                         (MkBitsVec 0x3) => Just $ RR SLTU 
+                                         (MkBitsVec 0x4) => Just $ RR XOR 
                                          (MkBitsVec 0x5) => case b_25_31 of 
-                                                              (MkBitsVec 0x00) => Just SRL 
-                                                              (MkBitsVec 0x20) => Just SRA
+                                                              (MkBitsVec 0x00) => Just $ RR SRL 
+                                                              (MkBitsVec 0x20) => Just $ RR SRA
                                                               _ => Nothing
-                                         (MkBitsVec 0x6) => Just OR 
-                                         (MkBitsVec 0x7) => Just AND
+                                         (MkBitsVec 0x6) => Just $ RR OR 
+                                         (MkBitsVec 0x7) => Just $ RR AND
                                          _ => Nothing
                  in case rop of 
                       (Just x) => MkInst (R x) b_15_19 b_20_24 b_7_11 di
@@ -189,17 +208,17 @@ decode' dr di bv =
                       
            I' => let imm = bv_sign_ext_32 $ bv_concatenate b_25_31 b_20_24
                      iop : Maybe IOP1 = case b_12_14 of
-                                          (MkBitsVec 0x0) => Just ADDI 
-                                          (MkBitsVec 0x1) => Just SLLI 
-                                          (MkBitsVec 0x2) => Just SLTI 
-                                          (MkBitsVec 0x3) => Just SLTIU
-                                          (MkBitsVec 0x4) => Just XORI 
+                                          (MkBitsVec 0x0) => Just $ RI ADD 
+                                          (MkBitsVec 0x1) => Just $ RI SLL 
+                                          (MkBitsVec 0x2) => Just $ RI SLT 
+                                          (MkBitsVec 0x3) => Just $ RI SLTU
+                                          (MkBitsVec 0x4) => Just $ RI XOR 
                                           (MkBitsVec 0x5) => case b_25_31 of 
-                                                               (MkBitsVec 0x00) => Just SRLI
-                                                               (MkBitsVec 0x20) => Just SRAI
+                                                               (MkBitsVec 0x00) => Just $ RI SRL
+                                                               (MkBitsVec 0x20) => Just $ RI SRA
                                                                _ => Nothing
-                                          (MkBitsVec 0x6) => Just ORI 
-                                          (MkBitsVec 0x7) => Just ANDI
+                                          (MkBitsVec 0x6) => Just $ RI OR
+                                          (MkBitsVec 0x7) => Just $ RI AND
                                           _ => Nothing
                  in case iop of
                       (Just x) => MkInst (I1 x) b_15_19 dr b_7_11 imm
@@ -245,7 +264,7 @@ decode' dr di bv =
                              (the (BitsVec 1) (MkBitsVec 0))) 
                  in MkInst (J JAL) dr dr b_7_11 imm
                  
-           J2 => MkInst (I1 JALR) b_15_19 dr b_7_11 (bv_sign_ext_32 $ bv_get_range 20 32 bv)
+           J2 => MkInst (IJ JALR) b_15_19 dr b_7_11 (bv_sign_ext_32 $ bv_get_range 20 32 bv)
            
            U1 => let imm = (bv_get_range 0 32 
                           $ bv_sll {m = 8} (bv_zero_ext (bv_get_range 12 32 bv)) 

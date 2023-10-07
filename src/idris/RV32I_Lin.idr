@@ -38,16 +38,16 @@ r_fn: (ROP, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
    -> (BitsVec 5, BitsVec 32, BitsVec 32)
 r_fn (op, op1, op2, rd, pc_) = 
   let res = case op of
-                 ADD  => bv_cast_32 . uncurry bv_add $ (op1, op2) 
-                 SUB  => bv_cast_32 . uncurry bv_sub $ (op1, op2)
-                 XOR  => uncurry bv_xor $ (op1, op2)
-                 OR   => uncurry bv_or  $ (op1, op2)           
-                 AND  => uncurry bv_and $ (op1, op2)            
-                 SLL  => uncurry bv_sll $ (op1, op2)            
-                 SRL  => uncurry bv_srl $ (op1, op2)            
-                 SRA  => uncurry bv_sra $ (op1, op2)            
-                 SLT  => bv_cast_32  . uncurry bv_lt  $ (op1, op2)
-                 SLTU => bv_cast_32  . uncurry bv_ltu $ (op1, op2)
+              (RR ADD)  => bv_cast_32 . uncurry bv_add $ (op1, op2) 
+              (RR SUB)  => bv_cast_32 . uncurry bv_sub $ (op1, op2)
+              (RR XOR)  => uncurry bv_xor $ (op1, op2)
+              (RR OR)   => uncurry bv_or  $ (op1, op2)           
+              (RR AND)  => uncurry bv_and $ (op1, op2)            
+              (RR SLL)  => uncurry bv_sll $ (op1, op2)            
+              (RR SRL)  => uncurry bv_srl $ (op1, op2)            
+              (RR SRA)  => uncurry bv_sra $ (op1, op2)            
+              (RR SLT)  => bv_cast_32  . uncurry bv_lt  $ (op1, op2)
+              (RR SLTU) => bv_cast_32  . uncurry bv_ltu $ (op1, op2)
       pc_' = bv_cast_32 $ bv_add (MkBitsVec 4) pc_
   in (rd, res, pc_')
   
@@ -61,19 +61,24 @@ i1_fn: (IOP1, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
     -> (BitsVec 5, BitsVec 32, BitsVec 32)
 i1_fn (op, op1, imm, rd, pc_) = 
   let res = case op of
-        ADDI  => bv_cast_32 $ bv_add op1 imm
-        XORI  => bv_cast_32 $ bv_xor op1 imm
-        ORI   => bv_cast_32 $ bv_or  op1 imm
-        ANDI  => bv_cast_32 $ bv_and op1 imm
-        SLLI  => bv_cast_32 $ bv_sll op1 $ bv_get_range 0 5 imm
-        SRLI  => bv_cast_32 $ bv_srl op1 $ bv_get_range 0 5 imm
-        SRAI  => bv_cast_32 $ bv_sra op1 $ bv_get_range 0 5 imm
-        SLTI  => bv_cast_32 $ bv_lt  op1 imm
-        SLTIU => bv_cast_32 $ bv_ltu op1 imm
-        JALR  => bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
-      pc_' = case op of
-        JALR => bv_cast_32 $ bv_add op1 imm
-        _    => bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
+              (RI ADD)  => bv_cast_32 $ bv_add op1 imm
+              (RI SUB)  => bv_cast_32 . uncurry bv_sub $ (op1, imm) 
+              (RI XOR)  => bv_cast_32 $ bv_xor op1 imm
+              (RI OR)   => bv_cast_32 $ bv_or  op1 imm
+              (RI AND)  => bv_cast_32 $ bv_and op1 imm
+              (RI SLL)  => bv_cast_32 $ bv_sll op1 $ bv_get_range 0 5 imm
+              (RI SRL)  => bv_cast_32 $ bv_srl op1 $ bv_get_range 0 5 imm
+              (RI SRA)  => bv_cast_32 $ bv_sra op1 $ bv_get_range 0 5 imm
+              (RI SLT)  => bv_cast_32 $ bv_lt  op1 imm
+              (RI SLTU) => bv_cast_32 $ bv_ltu op1 imm
+      pc_' = bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
+  in (rd, res, pc_')
+
+ij_fn: (IOPJ, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
+    -> (BitsVec 5, BitsVec 32, BitsVec 32)
+ij_fn (op, op1, imm, rd, pc_) = 
+  let res = bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
+      pc_' = bv_cast_32 $ bv_add op1 imm
   in (rd, res, pc_')
 
 i2_fn1 : (IOP2, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
@@ -134,11 +139,6 @@ s2_write_fn1 (MkLC (op, rs2, pc_, addr) $ (mem # regf # pc) # (sign # saved_op #
     saved_pc'      = reg_write pc_ saved_pc      
     saved_reg_idx' = reg_write rs2 saved_reg_idx
   in MkLC () ((mem # regf # pc') # (sign' # saved_op' # saved_reg_idx' # saved_pc'))
-
--- s2_read_fn2: LinContext (SOP2, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32) ContextExt
---           -@ LinContext (SOP2, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32) ContextExt
--- s2_read_fn2 (MkLC (op, op2, pc_, addr, mem_data) ((mem # regf # pc) # (sign # saved_op # saved_reg_idx # saved_pc))) = MkLC (op, op2, pc_, addr, mem_data) 
---             $ (mem # regf # pc) # (sign # saved_op # saved_reg_idx # saved_pc)
 
 s2_fn2: (SOP2, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)
      -> (BitsVec 32, BitsVec 32, BitsVec 32)
@@ -245,6 +245,10 @@ rv32i (MkLC () ctx) =
                   
             (I1 op) => i_write_fn 
                      . (i1_fn >@ id)  
+                     $ MkLC (op, op1, imm, rd, pc_)  ctx'
+            
+            (IJ op) => i_write_fn 
+                     . (ij_fn >@ id)  
                      $ MkLC (op, op1, imm, rd, pc_)  ctx'
                   
             (I2 op) => i2_write_fn1
