@@ -5,30 +5,55 @@ import Data.Fin
 import FinUtils
 
 public export
+data IDX = RR | RI
+
+public export
 data AOP = ADD | SUB | XOR | OR | AND | SLL | SRL | SRA | SLT | SLTU
 
-Show AOP where
-  show ADD  = "ADD  " 
-  show SUB  = "SUB  " 
-  show XOR  = "XOR  " 
-  show OR   = "OR   " 
-  show AND  = "AND  " 
-  show SLL  = "SLL  " 
-  show SRL  = "SRL  " 
-  show SRA  = "SRA  " 
-  show SLT  = "SLT  " 
-  show SLTU = "SLTU " 
+-- Show AOP where
+--   show ADD  = "ADD  " 
+--   show SUB  = "SUB  " 
+--   show XOR  = "XOR  " 
+--   show OR   = "OR   " 
+--   show AND  = "AND  " 
+--   show SLL  = "SLL  " 
+--   show SRL  = "SRL  " 
+--   show SRA  = "SRA  " 
+--   show SLT  = "SLT  " 
+--   show SLTU = "SLTU " 
 
-public export
-data ROP : Type where
-  RR : AOP -> ROP
+Show (IDX, AOP) where
+  show (RR, ADD)  = "ADD  "
+  show (RR, SUB)  = "SUB  "
+  show (RR, XOR)  = "XOR  "
+  show (RR, OR)   = "OR   "
+  show (RR, AND)  = "AND  "
+  show (RR, SLL)  = "SLL  "
+  show (RR, SRL)  = "SRL  "
+  show (RR, SRA)  = "SRA  "
+  show (RR, SLT)  = "SLT  "
+  show (RR, SLTU) = "SLTU "
+  show (RI, ADD)  = "ADDI "                   
+  show (RI, SUB)  = "SUBI " --will not be used
+  show (RI, XOR)  = "XORI "                   
+  show (RI, OR)   = "ORI  "                   
+  show (RI, AND)  = "ANDI "                   
+  show (RI, SLL)  = "SLLI "                   
+  show (RI, SRL)  = "SRLI "                   
+  show (RI, SRA)  = "SRAI "                   
+  show (RI, SLT)  = "SLTI "                   
+  show (RI, SLTU) = "SLTIU"                   
 
-Show ROP where
-  show (RR x)  = show x
+-- public export
+-- data ROP : Type where
+--   RR : AOP -> ROP
 
-public export
-data IOP1 : Type where 
-  RI : AOP -> IOP1
+-- Show ROP where
+--   show (RR x)  = show x
+
+-- public export
+-- data IOP1 : Type where 
+--   RI : AOP -> IOP1
 
 --= ADDI | XORI | ORI | ANDI | SLLI | SRLI | SRAI | SLTI | SLTIU 
 
@@ -38,17 +63,17 @@ data IOPJ = JALR
 public export
 data IOP2 =  LB | LH | LW | LBU | LHU 
 
-Show IOP1 where 
-  show (RI ADD ) = "ADDI "
-  show (RI SUB ) = "SUBI " --will not be used
-  show (RI XOR ) = "XORI "
-  show (RI OR  ) = "ORI  "
-  show (RI AND ) = "ANDI "
-  show (RI SLL ) = "SLLI "
-  show (RI SRL ) = "SRLI "
-  show (RI SRA ) = "SRAI "
-  show (RI SLT ) = "SLTI "
-  show (RI SLTU) = "SLTIU"
+-- Show IOP1 where 
+--   show (RI ADD ) = "ADDI "
+--   show (RI SUB ) = "SUBI " --will not be used
+--   show (RI XOR ) = "XORI "
+--   show (RI OR  ) = "ORI  "
+--   show (RI AND ) = "ANDI "
+--   show (RI SLL ) = "SLLI "
+--   show (RI SRL ) = "SRLI "
+--   show (RI SRA ) = "SRAI "
+--   show (RI SLT ) = "SLTI "
+--   show (RI SLTU) = "SLTIU"
 
 Show IOPJ where
   show JALR  = "JALR "
@@ -99,8 +124,9 @@ Show JOP where
 
 public export
 data OP : Type where
-  R : (op: ROP)  -> OP
-  I1: (op: IOP1) -> OP
+  -- R : (op: ROP)  -> OP
+  -- I1: (op: IOP1) -> OP
+  MERGED : IDX -> AOP -> OP
   IJ: (op: IOPJ) -> OP
   I2: (op: IOP2) -> OP
   S1: (op: SOP1) -> OP
@@ -127,26 +153,18 @@ bv_sign_ext_32 = (bv_get_range 0 32) .  bv_sign_ext
    
 public export
 Show Inst where
-  show (MkInst (R op) rs1 rs2 rd imm)
-    = (show op) ++ " x" ++ (show rs1) ++ " x" ++ (show rs2) ++ " x" ++ (show rd)
-  show (MkInst (I1 op) rs1 rs2 rd imm) 
-    = (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
-  show (MkInst (IJ op) rs1 rs2 rd imm) 
-    = (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
-  show (MkInst (I2 op) rs1 rs2 rd imm)
-    = (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
-  show (MkInst (S1 op) rs1 rs2 rd imm)
-    = (show op) ++ " M[x" ++ (show rs1) ++ " + #" ++ (show imm) ++ "] x" ++ (show rs2)
-  show (MkInst (S2 op) rs1 rs2 rd imm)
-    = (show op) ++ " M[x" ++ (show rs1) ++ " + #" ++ (show imm) ++ "] x" ++ (show rs2)
-  show (MkInst (B op) rs1 rs2 rd imm)
-    = (show op) ++ " x" ++ (show rs1) ++ " x" ++ (show rs2) ++ " #" ++ (show imm)
-  show (MkInst (U op) rs1 rs2 rd imm)
-    = (show op) ++ " x" ++ (show rd) ++ " #" ++ (show imm)
-  show (MkInst (J op) rs1 rs2 rd imm)
-    = (show op) ++ " x" ++ (show rd) ++ " #" ++ (show imm)
-  show (MkInst NA rs1 rs2 rd imm) = "NA"
-
+  show (MkInst opc (MkBitsVec rs1) (MkBitsVec rs2) (MkBitsVec rd) (MkBitsVec imm)) 
+    = case opc of 
+        (MERGED RR aop) => (show (RR, aop)) ++ " x" ++ (show rs1) ++ " #" ++ (show rs2) ++ " x" ++ (show rd)
+        (MERGED RI aop) => (show (RI, aop)) ++ " x" ++ (show rs1) ++ " #" ++ (show rs2) ++ " x" ++ (show rd)
+        (IJ op) => (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
+        (I2 op) => (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
+        (S1 op) => (show op) ++ " M[x" ++ (show rs1) ++ " + #" ++ (show imm) ++ "] x" ++ (show rs2)
+        (S2 op) => (show op) ++ " M[x" ++ (show rs1) ++ " + #" ++ (show imm) ++ "] x" ++ (show rs2)
+        (B op)  => (show op) ++ " x" ++ (show rs1) ++ " x" ++ (show rs2) ++ " #" ++ (show imm)
+        (U op)  => (show op) ++ " x" ++ (show rd) ++ " #" ++ (show imm)
+        (J op)  => (show op) ++ " x" ++ (show rd) ++ " #" ++ (show imm)
+        NA => "NA"
 
 data OpCode' = R' | I' | L' | S' | B' | U1 | U2 | J1 | J2 | NA'
 
@@ -186,42 +204,42 @@ decode' dr di bv =
       b_25_31 = bv_get_range 25 32 bv
       opcode  = get_op_code b_0_6
   in case opcode of
-           R' => let rop : Maybe ROP = case b_12_14 of
-                                         (MkBitsVec 0x0) => case b_25_31 of
-                                                              (MkBitsVec 0x00) => Just (RR ADD)
-                                                              (MkBitsVec 0x20) => Just (RR SUB) 
-                                                              _ => Nothing
-                                         (MkBitsVec 0x1) => Just $ RR SLL  
-                                         (MkBitsVec 0x2) => Just $ RR SLT  
-                                         (MkBitsVec 0x3) => Just $ RR SLTU 
-                                         (MkBitsVec 0x4) => Just $ RR XOR 
-                                         (MkBitsVec 0x5) => case b_25_31 of 
-                                                              (MkBitsVec 0x00) => Just $ RR SRL 
-                                                              (MkBitsVec 0x20) => Just $ RR SRA
-                                                              _ => Nothing
-                                         (MkBitsVec 0x6) => Just $ RR OR 
-                                         (MkBitsVec 0x7) => Just $ RR AND
-                                         _ => Nothing
+           R' => let rop : Maybe (IDX, AOP) = case b_12_14 of
+                                                (MkBitsVec 0x0) => case b_25_31 of
+                                                                     (MkBitsVec 0x00) => Just (RR, ADD)
+                                                                     (MkBitsVec 0x20) => Just (RR, SUB) 
+                                                                     _ => Nothing
+                                                (MkBitsVec 0x1) => Just (RR, SLL)  
+                                                (MkBitsVec 0x2) => Just (RR, SLT)  
+                                                (MkBitsVec 0x3) => Just (RR, SLTU) 
+                                                (MkBitsVec 0x4) => Just (RR, XOR)
+                                                (MkBitsVec 0x5) => case b_25_31 of 
+                                                                     (MkBitsVec 0x00) => Just (RR, SRL)
+                                                                     (MkBitsVec 0x20) => Just (RR, SRA)
+                                                                     _ => Nothing
+                                                (MkBitsVec 0x6) => Just (RR, OR)
+                                                (MkBitsVec 0x7) => Just (RR, AND)
+                                                _ => Nothing
                  in case rop of 
-                      (Just x) => MkInst (R x) b_15_19 b_20_24 b_7_11 di
+                      (Just (idx, aop)) => MkInst (MERGED idx aop) b_15_19 b_20_24 b_7_11 di
                       Nothing  => MkInst NA dr dr dr di
                       
            I' => let imm = bv_sign_ext_32 $ bv_concatenate b_25_31 b_20_24
-                     iop : Maybe IOP1 = case b_12_14 of
-                                          (MkBitsVec 0x0) => Just $ RI ADD 
-                                          (MkBitsVec 0x1) => Just $ RI SLL 
-                                          (MkBitsVec 0x2) => Just $ RI SLT 
-                                          (MkBitsVec 0x3) => Just $ RI SLTU
-                                          (MkBitsVec 0x4) => Just $ RI XOR 
-                                          (MkBitsVec 0x5) => case b_25_31 of 
-                                                               (MkBitsVec 0x00) => Just $ RI SRL
-                                                               (MkBitsVec 0x20) => Just $ RI SRA
-                                                               _ => Nothing
-                                          (MkBitsVec 0x6) => Just $ RI OR
-                                          (MkBitsVec 0x7) => Just $ RI AND
-                                          _ => Nothing
+                     iop : Maybe (IDX, AOP) = case b_12_14 of
+                                                (MkBitsVec 0x0) => Just (RI, ADD)
+                                                (MkBitsVec 0x1) => Just (RI, SLL)
+                                                (MkBitsVec 0x2) => Just (RI, SLT)
+                                                (MkBitsVec 0x3) => Just (RI, SLTU)
+                                                (MkBitsVec 0x4) => Just (RI, XOR) 
+                                                (MkBitsVec 0x5) => case b_25_31 of 
+                                                                     (MkBitsVec 0x00) => Just (RI, SRL)
+                                                                     (MkBitsVec 0x20) => Just (RI, SRA)
+                                                                     _ => Nothing
+                                                (MkBitsVec 0x6) => Just (RI, OR)
+                                                (MkBitsVec 0x7) => Just (RI, AND)
+                                                _ => Nothing
                  in case iop of
-                      (Just x) => MkInst (I1 x) b_15_19 dr b_7_11 imm
+                      (Just (idx, aop)) => MkInst (MERGED idx aop) b_15_19 dr b_7_11 imm
                       Nothing  => MkInst NA dr dr dr di
                       
            L' => let imm = bv_sign_ext_32 $ bv_concatenate b_25_31 b_20_24

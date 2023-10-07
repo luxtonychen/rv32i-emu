@@ -45,20 +45,14 @@ arith SRL  = uncurry bv_srl
 arith SRA  = uncurry bv_sra   
 arith SLT  = bv_cast_32  . uncurry bv_lt    
 arith SLTU = bv_cast_32  . uncurry bv_ltu
-       
-  
-r_write_fn: LinContext (BitsVec 5, BitsVec 32, BitsVec 32) ContextExt
-         -@ LinContext () ContextExt
-r_write_fn (MkLC (rd, res, pc_) $ (mem # regf # pc) # rest) 
-  = MkLC () $ (mem # regf_write rd res regf # reg_write pc_ pc) # rest
 
-
-r_i1_fn: ((Either ROP IOP1), BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
+r_i1_fn: (IDX, AOP, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
       -> (BitsVec 5, BitsVec 32, BitsVec 32)
-r_i1_fn (op, op1, op2, imm, rd, pc_) = 
-  let res = case op of
-              (Left  $ RR op')  => arith op' (op1, op2)
-              (Right $ RI op') => arith op' (op1, imm)
+r_i1_fn (idx, op, op1, op2', imm, rd, pc_) = 
+  let op2 = case idx of
+              RR => op2'
+              RI => imm
+      res = arith op (op1, op2)
       pc_' = bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
   in (rd, res, pc_')
   
@@ -98,9 +92,9 @@ i2_fn2 (op, rd, pc_, mem_data) =
       pc_' = bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
   in (rd, res, pc_')
       
-i_write_fn: LinContext (BitsVec 5, BitsVec 32, BitsVec 32) ContextExt
-         -@ LinContext () ContextExt
-i_write_fn (MkLC (rd, res, pc_) $ (mem # regf # pc) # (sign # rest))
+r_i_write_fn: LinContext (BitsVec 5, BitsVec 32, BitsVec 32) ContextExt
+           -@ LinContext () ContextExt
+r_i_write_fn (MkLC (rd, res, pc_) $ (mem # regf # pc) # (sign # rest))
   = MkLC () $ (mem # regf_write rd res regf # reg_write pc_ pc) 
             # (reg_write (MkBitsVec 0) sign # rest)
   
@@ -216,7 +210,7 @@ rv32i (MkLC () ctx) =
         = read_fn (MkLC () ctx)
   in if (sign_ == (MkBitsVec 1))
      then case opc of 
-            (I2 op)  => i_write_fn 
+            (I2 op)  => r_i_write_fn 
                       . (i2_fn2 >@ id) 
                       $ MkLC (op, rd, pc_, mem_data) ctx'
                        
@@ -227,15 +221,11 @@ rv32i (MkLC () ctx) =
             _ => MkLC () ctx'
             
      else case (opc) of
-            (R op) => r_write_fn 
-                    . (r_i1_fn >@ id) 
-                    $ MkLC (Left op, op1, op2, imm, rd, pc_)  ctx'
-                  
-            (I1 op) => i_write_fn 
-                     . (r_i1_fn >@ id)  
-                     $ MkLC (Right op, op1, op2, imm, rd, pc_)  ctx'
+            (MERGED idx op) => r_i_write_fn 
+                             . (r_i1_fn >@ id) 
+                             $ MkLC (idx, op, op1, op2, imm, rd, pc_)  ctx'
             
-            (IJ op) => i_write_fn 
+            (IJ op) => r_i_write_fn 
                      . (ij_fn >@ id)  
                      $ MkLC (op, op1, imm, rd, pc_)  ctx'
                   
