@@ -55,7 +55,7 @@ r_i1_fn (idx, op, op1, op2', imm, rd, pc_) =
       res = arith op (op1, op2)
       pc_' = bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
   in (rd, res, pc_')
-  
+
 ij_fn: (IOPJ, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
     -> (BitsVec 5, BitsVec 32, BitsVec 32)
 ij_fn (op, op1, imm, rd, pc_) = 
@@ -137,8 +137,15 @@ s_write_fn (MkLC (pc_, addr, res) $ (mem # regf # pc) # (sign # rest))
   = MkLC () $ (mem_write addr res mem # regf # reg_write pc_ pc) 
              # (reg_write (MkBitsVec 0) sign # rest)
 
+b_fn1: BOP -> BitsVec 32 -> BitsVec 32 -> BitsVec 1
+b_fn1 BEQ  op1 op2 = bv_eq op1 op2
+b_fn1 BNE  op1 op2 = bv_neg $ bv_eq op1 op2
+b_fn1 BLT  op1 op2 = bv_lt op1 op2
+b_fn1 BGE  op1 op2 = bv_neg $ bv_lt op1 op2
+b_fn1 BLTU op1 op2 = bv_ltu op1 op2
+b_fn1 BGEU op1 op2 = bv_neg $ bv_ltu op1 op2
       
-b_fn : (BOP, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)-> (BitsVec 32)
+b_fn : (BOP, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)-> BitsVec 32
 b_fn (op, op1, op2, imm', pc_) = 
   let b = case op of 
         BEQ  => (bv_lt op1 op2)  == (bv_lt op2 op1)
@@ -204,56 +211,137 @@ read_fn (MkLC () ((mem # regf # pc) # (sign # op # reg_idx # saved_pc))) =
   in (MkLC (opc, op1, op2, rs2, rd, imm, pc_, addr, mem_data, sign_) 
            ((mem' # regf'' # pc') # (sign' # op' # reg_idx' # saved_pc')))
 
+write_mem_fn: BitsVec 1 -> OP 
+           -> LinContext (BitsVec 32, BitsVec 32) LinMem
+           -@ LinContext () LinMem
+write_mem_fn (MkBitsVec 1) (S2 _) (MkLC (addr, dat) mem) = MkLC () $ mem_write addr dat mem
+write_mem_fn (MkBitsVec 0) (S1 _) (MkLC (addr, dat) mem) = MkLC () $ mem_write addr dat mem
+write_mem_fn _  _ (MkLC (addr, dat) mem) = MkLC () mem
+
+write_regf_fn: BitsVec 1 -> OP 
+           -> LinContext (BitsVec 5, BitsVec 32) LinRegF
+           -@ LinContext () LinRegF
+write_regf_fn (MkBitsVec 0) (I2 _) (MkLC (rd, dat) regf) = MkLC () $ regf
+write_regf_fn _             (S2 _) (MkLC (rd, dat) regf) = MkLC () $ regf
+write_regf_fn _             (B _)  (MkLC (rd, dat) regf) = MkLC () $ regf
+write_regf_fn _             _      (MkLC (rd, dat) regf) = MkLC () $ regf_write rd dat regf
+
+write_pc_fn: BitsVec 1 -> OP 
+          -> LinContext (BitsVec 32, BitsVec 32) PC
+          -@ LinContext () PC
+write_pc_fn (MkBitsVec 0) (S2 _) (MkLC (pc_, r_addr) pc) = MkLC () $ reg_write r_addr pc
+write_pc_fn (MkBitsVec 0) (I2 _) (MkLC (pc_, r_addr) pc) = MkLC () $ reg_write r_addr pc
+write_pc_fn _ _ (MkLC (pc_, r_addr) pc) = MkLC () $ reg_write pc_ pc
+
+||| input ((addr, dat), (rd, res), (pc_, r_addr))
+write_fn_1: BitsVec 1 -> OP 
+          -> LinContext ((BitsVec 32, BitsVec 32), (BitsVec 5, BitsVec 32), (BitsVec 32, BitsVec 32)) Context
+          -@ LinContext () Context
+write_fn_1 sign_ opc = (fst >@ id) .
+  (write_mem_fn sign_ opc) <||> (write_regf_fn sign_ opc) <||> (write_pc_fn sign_ opc)
+        
+
+write_sign_fn: BitsVec 1 -> OP 
+            -> LinContext () (LinReg $ BitsVec 1)
+            -@ LinContext () (LinReg $ BitsVec 1)
+write_sign_fn (MkBitsVec 0) (S2 _) (MkLC () sign) = MkLC () $ reg_write (MkBitsVec 1) sign
+write_sign_fn (MkBitsVec 0) (I2 _) (MkLC () sign) = MkLC () $ reg_write (MkBitsVec 1) sign
+write_sign_fn _ _ (MkLC () sign) = MkLC () $ reg_write (MkBitsVec 0) sign
+
+write_op_fn: BitsVec 1 -> OP 
+          -> LinContext () (LinReg OP)
+          -@ LinContext () (LinReg OP)
+write_op_fn (MkBitsVec 0) (S2 x) (MkLC () op) = MkLC () $ reg_write (S2 x) op
+write_op_fn (MkBitsVec 0) (I2 x) (MkLC () op) = MkLC () $ reg_write (I2 x) op
+write_op_fn _ _ (MkLC () op) = MkLC () op
+
+write_reg_idx_fn: BitsVec 1 -> OP 
+               -> LinContext (BitsVec 5, BitsVec 5) (LinReg $ BitsVec 5)
+               -@ LinContext () (LinReg $ BitsVec 5)
+write_reg_idx_fn (MkBitsVec 0) (S2 _) (MkLC (rs2, rd) reg_idx) = MkLC () $ reg_write rs2 reg_idx
+write_reg_idx_fn (MkBitsVec 0) (I2 _) (MkLC (rs2, rd) reg_idx) = MkLC () $ reg_write rd reg_idx
+write_reg_idx_fn _ _ (MkLC (rs2, rd) reg_idx) = MkLC () reg_idx
+
+write_saved_pc_fn: BitsVec 1 -> OP 
+                -> LinContext (BitsVec 32) (LinReg $ BitsVec 32)
+                -@ LinContext () (LinReg $ BitsVec 32)
+write_saved_pc_fn (MkBitsVec 0) (S2 _) (MkLC (pc_) saved_pc) = MkLC () $ reg_write pc_ saved_pc
+write_saved_pc_fn (MkBitsVec 0) (I2 _) (MkLC (pc_) saved_pc) = MkLC () $ reg_write pc_ saved_pc
+write_saved_pc_fn _ _ (MkLC (pc_) saved_pc) = MkLC () saved_pc
+
+write_fn_2: BitsVec 1 -> OP 
+           -> LinContext ((), (), (BitsVec 5, BitsVec 5), BitsVec 32)
+                         (LPair (LinReg $ BitsVec 1) $ LPair (LinReg $ OP)
+                         (LPair (LinReg $ BitsVec 5) (LinReg $ BitsVec 32)))
+           -@ LinContext () 
+                         (LPair (LinReg $ BitsVec 1) $ LPair (LinReg $ OP)
+                         (LPair (LinReg $ BitsVec 5) (LinReg $ BitsVec 32)))
+write_fn_2 sign_ opc = (fst >@ id) .
+  (write_sign_fn sign_ opc) <||> (write_op_fn sign_ opc) <||> 
+  (write_reg_idx_fn sign_ opc) <||> (write_saved_pc_fn sign_ opc)
+  
+write_in_expand: ((BitsVec 32, BitsVec 32), (BitsVec 5, BitsVec 32), (BitsVec 32, BitsVec 32), BitsVec 5)
+              -> (((BitsVec 32, BitsVec 32), (BitsVec 5, BitsVec 32), (BitsVec 32, BitsVec 32)), 
+                  ((), (), (BitsVec 5, BitsVec 5), BitsVec 32)) 
+write_in_expand ((addr, dat), (rd, res), (pc_, r_addr), rs2) 
+  = (((addr, dat), (rd, res), (pc_, r_addr)), ((), (), (rs2, rd), pc_))
+
+-- ((addr, dat), (rd, res), (pc_, r_addr), rs2)
+
+write_fn: BitsVec 1 -> OP 
+       -> LinContext ((BitsVec 32, BitsVec 32), (BitsVec 5, BitsVec 32), (BitsVec 32, BitsVec 32), BitsVec 5)
+                     ContextExt
+       -@ LinContext () ContextExt
+write_fn sign_ opc = (fst >@ id) 
+                   . ((write_fn_1 sign_ opc) <||> (write_fn_2 sign_ opc))
+                   . (write_in_expand >@ id)
+
+
+
 rv32i : LinContext () ContextExt -@ LinContext () ContextExt
 rv32i (MkLC () ctx) = 
   let MkLC (opc, op1, op2, rs2, rd, imm, pc_, addr, mem_data, sign_) ctx' 
         = read_fn (MkLC () ctx)
-  in if (sign_ == (MkBitsVec 1))
-     then case opc of 
-            (I2 op)  => r_i_write_fn 
-                      . (i2_fn2 >@ id) 
-                      $ MkLC (op, rd, pc_, mem_data) ctx'
-                       
-            (S2 op) => s_write_fn 
-                     . (s2_fn2 >@ id) 
-                     $ MkLC (op, op2, pc_, addr, mem_data) ctx' -- <- to break to two stage
-                     
-            _ => MkLC () ctx'
-            
-     else case (opc) of
-            (MERGED idx op) => r_i_write_fn 
-                             . (r_i1_fn >@ id) 
-                             $ MkLC (idx, op, op1, op2, imm, rd, pc_)  ctx'
-            
-            (IJ op) => r_i_write_fn 
-                     . (ij_fn >@ id)  
-                     $ MkLC (op, op1, imm, rd, pc_)  ctx'
-                  
-            (I2 op) => i2_write_fn1
-                     . (i2_fn1 >@ id) 
-                     $ MkLC (op, op1, imm, rd, pc_)  ctx'
-                  
-            (S1 op) => s_write_fn 
-                     . (s1_fn >@ id)
-                     $ MkLC (op, op1, op2, imm, pc_) ctx' 
-            
-            (S2 op) => s2_write_fn1 -- <-
-                     . (s2_fn1 >@ id)
-                     $ MkLC (op, op1, rs2, imm, pc_) ctx' 
-                             
-            (B op)  => b_write_fn 
-                     . (b_fn >@ id) 
-                     $ MkLC (op, op1, op2, imm, pc_) ctx'
-                    
-            (U op)  => u_write_fn 
-                     . (u_fn >@ id) 
-                     $ MkLC (op, imm, rd, pc_) ctx'
-                  
-            (J op)  => j_write_fn 
-                     . (j_fn >@ id) 
-                     $ MkLC (op, imm, rd, pc_) ctx'
-                    
-            _ => (MkLC () ctx')
+      res : BitsVec 32 = case opc of
+        (MERGED RR op) => arith op (op1, op2)
+        (MERGED RI op) => arith op (op1, imm)
+        (IJ op) => bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
+        (I2 op) => case op of
+                     LB  => bv_cast_32 $ bv_sign_ext $ bv_get_range 0 8 mem_data
+                     LH  => bv_cast_32 $ bv_sign_ext $ bv_get_range 0 16 mem_data
+                     LW  => mem_data
+                     LBU => bv_cast_32 $ bv_zero_ext $ bv_get_range 0 8 mem_data
+                     LHU => bv_cast_32 $ bv_zero_ext $ bv_get_range 0 16 mem_data
+        (U op) => case op of 
+                    LUI => imm
+                    AUIPC => bv_get_range 0 32 $ bv_add pc_ imm
+        (J op) => bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
+        _ => MkBitsVec 0
+      pc_' : BitsVec 32 = case opc of
+        (IJ _) => bv_cast_32 $ bv_add op1 imm
+        (B op) => case (b_fn1 op op1 op2) of
+                    (MkBitsVec 1) => bv_cast_32 $ pc_ `bv_add` imm
+                    _ => bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
+        (J _) => bv_cast_32 $ pc_ `bv_add` imm
+        (I2 _) => if (sign_ == MkBitsVec 0) then pc_ else bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
+        (S2 _) => if (sign_ == MkBitsVec 0) then pc_ else bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
+        _ => bv_cast_32 $ pc_ `bv_add` MkBitsVec 4 
+      r_addr : BitsVec 32 = case sign_ of
+        (MkBitsVec 0) => case opc of                              
+                           (I2 _) => bv_cast_32 $ op1 `bv_add` imm
+                           (S2 _) => bv_cast_32 $ op1 `bv_add` imm
+                           _ => MkBitsVec 0
+        _ => MkBitsVec 0
+      w_addr : BitsVec 32 = case opc of
+        (S1 _) => bv_cast_32 $ op1 `bv_add` imm
+        _ => addr
+      w_dat : BitsVec 32 = case opc of
+        (S2 op) => case op of
+                     SB => bv_concatenate (bv_get_range 8 32 mem_data)  (bv_get_range 0 8 op2)
+                     SH => bv_concatenate (bv_get_range 16 32 mem_data) (bv_get_range 0 16 op2)
+        (S1 _) => op2
+        _ => MkBitsVec 0
+  in write_fn sign_ opc $ MkLC ((w_addr, w_dat), (rd, res), (pc_', r_addr), rs2) ctx'
 
 eval: String -> Nat -> IO ()
 eval i_file n = 
@@ -273,23 +361,25 @@ eval i_file n =
       mem_value # mem'' = mem_read {n=32} (MkBitsVec 0x1000) mem'
       next_pc   # pc''  = reg_read pc'
       next_inst # mem3  = mem_read next_pc mem''
-      () = consume mem3
-      () = consume reg''
       () = consume pc''
       () = consume sign'
       () = consume op'
       () = consume reg_idx'
       () = consume saved_pc'
+      () = consume mem3
+      () = consume reg''
   in do putStrLn "================================================================================"
         putStrLn i_file
         if mem_value == MkBitsVec 0x11111111 
           then putStrLn "pass!"
-          else do
-            _ <- fPutStrLn stderr "Next inst:"
-            _ <- fPutStrLn stderr (show $ decode next_inst)
-            _ <- fPutStrLn stderr ("Value in gp (x3, Count of tests): " ++ (show v))
-            _ <- fPutStrLn stderr "fail!"
-            pure ()
+          else do _ <- fPutStrLn stderr "Next inst:"
+                  _ <- fPutStrLn stderr (show $ decode next_inst)
+                  _ <- fPutStrLn stderr ("Value in gp (x3, Count of tests): " ++ (show v))
+                  _ <- fPutStrLn stderr ("Value in x6: " ++ (show v6))
+                  _ <- fPutStrLn stderr ("Value in x7: " ++ (show v7))
+                  _ <- fPutStrLn stderr ("Value in x8: " ++ (show v8))
+                  _ <- fPutStrLn stderr "fail!"
+                  pure ()
         pure ()
 
 main : IO ()

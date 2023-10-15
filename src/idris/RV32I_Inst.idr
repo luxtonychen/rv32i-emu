@@ -156,7 +156,7 @@ Show Inst where
   show (MkInst opc (MkBitsVec rs1) (MkBitsVec rs2) (MkBitsVec rd) (MkBitsVec imm)) 
     = case opc of 
         (MERGED RR aop) => (show (RR, aop)) ++ " x" ++ (show rs1) ++ " #" ++ (show rs2) ++ " x" ++ (show rd)
-        (MERGED RI aop) => (show (RI, aop)) ++ " x" ++ (show rs1) ++ " #" ++ (show rs2) ++ " x" ++ (show rd)
+        (MERGED RI aop) => (show (RI, aop)) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
         (IJ op) => (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
         (I2 op) => (show op) ++ " x" ++ (show rs1) ++ " #" ++ (show imm) ++ " x" ++ (show rd)
         (S1 op) => (show op) ++ " M[x" ++ (show rs1) ++ " + #" ++ (show imm) ++ "] x" ++ (show rs2)

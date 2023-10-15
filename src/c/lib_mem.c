@@ -103,7 +103,7 @@ mem_ty mem_save(char* fname, mem_ty mem) {
 mem_ty mem_save_2(char* fname, mem_ty mem) {
   addr_ty len = ((addr_ty*) mem)[0];
   FILE* f;
-
+  printf("saved\n");
   f = fopen(fname, "wb");
   fwrite(&(((uint8_t*)mem)[4]), len*sizeof(uint8_t), 1, f);
   fclose(f);
