@@ -46,97 +46,6 @@ arith SRA  = uncurry bv_sra
 arith SLT  = bv_cast_32  . uncurry bv_lt    
 arith SLTU = bv_cast_32  . uncurry bv_ltu
 
-r_i1_fn: (IDX, AOP, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
-      -> (BitsVec 5, BitsVec 32, BitsVec 32)
-r_i1_fn (idx, op, op1, op2', imm, rd, pc_) = 
-  let op2 = case idx of
-              RR => op2'
-              RI => imm
-      res = arith op (op1, op2)
-      pc_' = bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
-  in (rd, res, pc_')
-
-ij_fn: (IOPJ, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
-    -> (BitsVec 5, BitsVec 32, BitsVec 32)
-ij_fn (op, op1, imm, rd, pc_) = 
-  let res = bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
-      pc_' = bv_cast_32 $ bv_add op1 imm
-  in (rd, res, pc_')
-
-i2_fn1 : (IOP2, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 32)
-      -> (IOP2, BitsVec 32, BitsVec 5, BitsVec 32)
-i2_fn1 (op, op1, imm, rd, pc_) = 
-  let addr = (bv_cast_32 $ bv_add op1 imm)
-  in (op, addr, rd, pc_)
-
-i2_write_fn1: LinContext (IOP2, BitsVec 32, BitsVec 5, BitsVec 32) ContextExt
-           -@ LinContext () ContextExt
-i2_write_fn1 (MkLC (op, addr, rd, pc_) $ (mem # regf # pc) # (sign # saved_op # saved_reg_idx # saved_pc)) = 
-  let
-    pc' = reg_write addr pc
-    sign' = reg_write (MkBitsVec 1) sign
-    saved_op' = reg_write (I2 op) saved_op
-    saved_pc' = reg_write pc_ saved_pc
-    saved_reg_idx' = reg_write rd saved_reg_idx
-  in MkLC () ((mem # regf # pc') # (sign' # saved_op' # saved_reg_idx' # saved_pc'))
-
-i2_fn2: (IOP2, BitsVec 5, BitsVec 32, BitsVec 32)
-     -> (BitsVec 5, BitsVec 32, BitsVec 32)
-i2_fn2 (op, rd, pc_, mem_data) = 
-  let res = case op of
-        LB    => bv_cast_32 $ bv_sign_ext $ bv_get_range 0 8 mem_data
-        LH    => bv_cast_32 $ bv_sign_ext $ bv_get_range 0 16 mem_data
-        LW    => mem_data
-        LBU   => bv_cast_32 $ bv_zero_ext $ bv_get_range 0 8 mem_data
-        LHU   => bv_cast_32 $ bv_zero_ext $ bv_get_range 0 16 mem_data
-      pc_' = bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
-  in (rd, res, pc_')
-      
-r_i_write_fn: LinContext (BitsVec 5, BitsVec 32, BitsVec 32) ContextExt
-           -@ LinContext () ContextExt
-r_i_write_fn (MkLC (rd, res, pc_) $ (mem # regf # pc) # (sign # rest))
-  = MkLC () $ (mem # regf_write rd res regf # reg_write pc_ pc) 
-            # (reg_write (MkBitsVec 0) sign # rest)
-  
-s1_fn: (SOP1, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)
-    -> (BitsVec 32, BitsVec 32, BitsVec 32)
-s1_fn (op, op1, op2, imm, pc_) = 
-  let addr = bv_cast_32 $ op1 `bv_add` imm 
-      pc_' = (bv_cast_32 $ pc_ `bv_add` MkBitsVec 4)
-  in (pc_', addr, op2)
-
-s2_fn1: (SOP2, BitsVec 32, BitsVec 5, BitsVec 32, BitsVec 32)
-     -> (SOP2, BitsVec 5, BitsVec 32, BitsVec 32)
-s2_fn1 (op, op1, rs2, imm, pc_) = 
-  let addr = bv_cast_32 $ op1 `bv_add` imm 
-  in (op, rs2, pc_, addr)
-  
-s2_write_fn1: LinContext (SOP2, BitsVec 5, BitsVec 32, BitsVec 32) ContextExt
-           -@ LinContext () ContextExt
-s2_write_fn1 (MkLC (op, rs2, pc_, addr) $ (mem # regf # pc) # (sign # saved_op # saved_reg_idx # saved_pc)) = 
-  let
-    pc' = reg_write addr pc
-    sign'          = reg_write (MkBitsVec 1) sign         
-    saved_op'      = reg_write (S2 op) saved_op     
-    saved_pc'      = reg_write pc_ saved_pc      
-    saved_reg_idx' = reg_write rs2 saved_reg_idx
-  in MkLC () ((mem # regf # pc') # (sign' # saved_op' # saved_reg_idx' # saved_pc'))
-
-s2_fn2: (SOP2, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)
-     -> (BitsVec 32, BitsVec 32, BitsVec 32)
-s2_fn2 (op, op2, pc_, addr, mem_data) = 
-  let res = case op of 
-        SB => bv_concatenate (bv_get_range 8 32 mem_data)  (bv_get_range 0 8 op2)
-        SH => bv_concatenate (bv_get_range 16 32 mem_data) (bv_get_range 0 16 op2)
-      pc_'  = (bv_cast_32 $ pc_ `bv_add` MkBitsVec 4)
-  in (pc_', addr, res)
-  
-s_write_fn: LinContext (BitsVec 32, BitsVec 32, BitsVec 32) ContextExt
-         -@ LinContext () ContextExt
-s_write_fn (MkLC (pc_, addr, res) $ (mem # regf # pc) # (sign # rest)) 
-  = MkLC () $ (mem_write addr res mem # regf # reg_write pc_ pc) 
-             # (reg_write (MkBitsVec 0) sign # rest)
-
 b_fn1: BOP -> BitsVec 32 -> BitsVec 32 -> BitsVec 1
 b_fn1 BEQ  op1 op2 = bv_eq op1 op2
 b_fn1 BNE  op1 op2 = bv_neg $ bv_eq op1 op2
@@ -144,51 +53,6 @@ b_fn1 BLT  op1 op2 = bv_lt op1 op2
 b_fn1 BGE  op1 op2 = bv_neg $ bv_lt op1 op2
 b_fn1 BLTU op1 op2 = bv_ltu op1 op2
 b_fn1 BGEU op1 op2 = bv_neg $ bv_ltu op1 op2
-      
-b_fn : (BOP, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)-> BitsVec 32
-b_fn (op, op1, op2, imm', pc_) = 
-  let b = case op of 
-        BEQ  => (bv_lt op1 op2)  == (bv_lt op2 op1)
-        BNE  => (bv_lt op1 op2)  /= (bv_lt op2 op1)
-        BLT  => (bv_lt op1 op2)  == (MkBitsVec 1)
-        BGE  => (bv_lt op1 op2)  /= (MkBitsVec 1)
-        BLTU => (bv_ltu op1 op2) == (MkBitsVec 1)
-        BGEU => (bv_ltu op1 op2) /= (MkBitsVec 1)
-      pc_' = if b then bv_get_range 0 32 $ pc_ `bv_add` (bv_get_range 0 32 $ bv_sign_ext imm')
-                  else bv_get_range 0 32 $ pc_ `bv_add` MkBitsVec 4
-  in pc_'
-  
-b_write_fn : LinContext (BitsVec 32) ContextExt -@ LinContext () ContextExt
-b_write_fn (MkLC pc_ $ (mem # regf # pc) # rest)
-  = (MkLC () $ (mem # regf # reg_write pc_ pc) # rest)
-         
-u_fn : (UOP, BitsVec 32, BitsVec 5, BitsVec 32)
-    -> (BitsVec 5, BitsVec 32, BitsVec 32)
-u_fn (op, imm', rd, pc_) = 
-  let res = case op of 
-        LUI => imm'
-        AUIPC => bv_get_range 0 32 $ bv_add pc_ imm'
-      pc_' = (bv_cast_32 $ pc_ `bv_add` MkBitsVec 4)
-  in (rd, res, pc_')
-  
-u_write_fn : LinContext (BitsVec 5, BitsVec 32, BitsVec 32) ContextExt
-          -@ LinContext () ContextExt
-u_write_fn (MkLC (rd, res, pc_) $ (mem # regf # pc) # rest)
-  = (MkLC () $ (mem # regf_write rd res regf # reg_write pc_ pc) # rest)
-
-    
-j_fn: (JOP, BitsVec 32, BitsVec 5, BitsVec 32)
-   -> (BitsVec 5, BitsVec 32, BitsVec 32)
-j_fn  (op, imm, rd, pc_) = 
-  let 
-      pc_' = bv_cast_32 $ pc_ `bv_add` imm
-      res  = bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
-  in (rd, res, pc_')
-  
-j_write_fn: LinContext (BitsVec 5, BitsVec 32, BitsVec 32) ContextExt
-         -@ LinContext () ContextExt
-j_write_fn (MkLC (rd, res, pc_) $ (mem # regf # pc) # rest) 
-  = MkLC () $ (mem # regf_write rd res regf # reg_write pc_ pc) # rest
 
 read_fn: LinContext () ContextExt 
       -@ LinContext 
@@ -296,51 +160,77 @@ write_fn sign_ opc = (fst >@ id)
                    . ((write_fn_1 sign_ opc) <||> (write_fn_2 sign_ opc))
                    . (write_in_expand >@ id)
 
+res_fn : OP 
+      -> (BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)
+      -> BitsVec 32
+res_fn (MERGED RR op) (op1, op2, imm, pc_, mem_data) = arith op (op1, op2)
+res_fn (MERGED RI op) (op1, op2, imm, pc_, mem_data) = arith op (op1, imm)
+res_fn (IJ op) (op1, op2, imm, pc_, mem_data) = bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
+res_fn (I2 op) (op1, op2, imm, pc_, mem_data) = 
+  case op of
+    LB  => bv_cast_32 $ bv_sign_ext $ bv_get_range 0 8 mem_data 
+    LH  => bv_cast_32 $ bv_sign_ext $ bv_get_range 0 16 mem_data
+    LW  => mem_data                                             
+    LBU => bv_cast_32 $ bv_zero_ext $ bv_get_range 0 8 mem_data 
+    LHU => bv_cast_32 $ bv_zero_ext $ bv_get_range 0 16 mem_data
+res_fn (U op) (op1, op2, imm, pc_, mem_data) =
+  case op of                                   
+    LUI => imm                                 
+    AUIPC => bv_get_range 0 32 $ bv_add pc_ imm
+res_fn (J op) (op1, op2, imm, pc_, mem_data) = bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
+res_fn _ _ = MkBitsVec 0
 
+pc_fn: OP -> BitsVec 1
+    -> (BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)
+    -> BitsVec 32
+pc_fn (IJ _) _ (op1, op2, imm, pc_) = bv_cast_32 $ bv_add op1 imm
+pc_fn (B op) _ (op1, op2, imm, pc_) = 
+  case (b_fn1 op op1 op2) of
+    (MkBitsVec 1) => bv_cast_32 $ pc_ `bv_add` imm
+    _ => bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
+pc_fn (J  _) _ (op1, op2, imm, pc_) = bv_cast_32 $ pc_ `bv_add` imm
+pc_fn (I2 _) (MkBitsVec 0) (op1, op2, imm, pc_) = pc_
+pc_fn (S2 _) (MkBitsVec 0) (op1, op2, imm, pc_) = pc_
+pc_fn _ _ (op1, op2, imm, pc_) = bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
+
+r_addr_fn: OP 
+        -> (BitsVec 32, BitsVec 32)
+        -> BitsVec 32
+r_addr_fn (I2 _) (op1, imm) = bv_cast_32 $ op1 `bv_add` imm
+r_addr_fn (S2 _) (op1, imm) = bv_cast_32 $ op1 `bv_add` imm
+r_addr_fn _ _ = MkBitsVec 0
+
+w_addr_fn: OP 
+        -> (BitsVec 32, BitsVec 32, BitsVec 32)
+        -> BitsVec 32
+w_addr_fn (S1 _) (op1, imm, addr) = bv_cast_32 $ op1 `bv_add` imm
+w_addr_fn _ (op1, imm, addr) = addr
+
+w_dat_fn: OP
+       -> (BitsVec 32, BitsVec 32)
+       -> BitsVec 32
+w_dat_fn (S1 _) (op2, mem_data) = op2
+w_dat_fn (S2 op) (op2, mem_data) = 
+  case op of
+    SB => bv_concatenate (bv_get_range 8 32 mem_data)  (bv_get_range 0 8 op2)
+    SH => bv_concatenate (bv_get_range 16 32 mem_data) (bv_get_range 0 16 op2)
+w_dat_fn _ _ = MkBitsVec 0
 
 rv32i : LinContext () ContextExt -@ LinContext () ContextExt
 rv32i (MkLC () ctx) = 
   let MkLC (opc, op1, op2, rs2, rd, imm, pc_, addr, mem_data, sign_) ctx' 
         = read_fn (MkLC () ctx)
-      res : BitsVec 32 = case opc of
-        (MERGED RR op) => arith op (op1, op2)
-        (MERGED RI op) => arith op (op1, imm)
-        (IJ op) => bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
-        (I2 op) => case op of
-                     LB  => bv_cast_32 $ bv_sign_ext $ bv_get_range 0 8 mem_data
-                     LH  => bv_cast_32 $ bv_sign_ext $ bv_get_range 0 16 mem_data
-                     LW  => mem_data
-                     LBU => bv_cast_32 $ bv_zero_ext $ bv_get_range 0 8 mem_data
-                     LHU => bv_cast_32 $ bv_zero_ext $ bv_get_range 0 16 mem_data
-        (U op) => case op of 
-                    LUI => imm
-                    AUIPC => bv_get_range 0 32 $ bv_add pc_ imm
-        (J op) => bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
-        _ => MkBitsVec 0
-      pc_' : BitsVec 32 = case opc of
-        (IJ _) => bv_cast_32 $ bv_add op1 imm
-        (B op) => case (b_fn1 op op1 op2) of
-                    (MkBitsVec 1) => bv_cast_32 $ pc_ `bv_add` imm
-                    _ => bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
-        (J _) => bv_cast_32 $ pc_ `bv_add` imm
-        (I2 _) => if (sign_ == MkBitsVec 0) then pc_ else bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
-        (S2 _) => if (sign_ == MkBitsVec 0) then pc_ else bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
-        _ => bv_cast_32 $ pc_ `bv_add` MkBitsVec 4 
-      r_addr : BitsVec 32 = case sign_ of
-        (MkBitsVec 0) => case opc of                              
-                           (I2 _) => bv_cast_32 $ op1 `bv_add` imm
-                           (S2 _) => bv_cast_32 $ op1 `bv_add` imm
-                           _ => MkBitsVec 0
-        _ => MkBitsVec 0
-      w_addr : BitsVec 32 = case opc of
-        (S1 _) => bv_cast_32 $ op1 `bv_add` imm
-        _ => addr
-      w_dat : BitsVec 32 = case opc of
-        (S2 op) => case op of
-                     SB => bv_concatenate (bv_get_range 8 32 mem_data)  (bv_get_range 0 8 op2)
-                     SH => bv_concatenate (bv_get_range 16 32 mem_data) (bv_get_range 0 16 op2)
-        (S1 _) => op2
-        _ => MkBitsVec 0
+        
+      res = res_fn opc (op1, op2, imm, pc_, mem_data)
+        
+      pc_' = pc_fn opc sign_ (op1, op2, imm, pc_)
+        
+      r_addr = r_addr_fn opc (op1, imm)
+
+      w_addr = w_addr_fn opc (op1, imm, addr)
+        
+      w_dat  = w_dat_fn opc (op2, mem_data)
+      
   in write_fn sign_ opc $ MkLC ((w_addr, w_dat), (rd, res), (pc_', r_addr), rs2) ctx'
 
 eval: String -> Nat -> IO ()
@@ -375,9 +265,6 @@ eval i_file n =
           else do _ <- fPutStrLn stderr "Next inst:"
                   _ <- fPutStrLn stderr (show $ decode next_inst)
                   _ <- fPutStrLn stderr ("Value in gp (x3, Count of tests): " ++ (show v))
-                  _ <- fPutStrLn stderr ("Value in x6: " ++ (show v6))
-                  _ <- fPutStrLn stderr ("Value in x7: " ++ (show v7))
-                  _ <- fPutStrLn stderr ("Value in x8: " ++ (show v8))
                   _ <- fPutStrLn stderr "fail!"
                   pure ()
         pure ()
