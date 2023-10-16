@@ -31,6 +31,13 @@ ContextExt = LPair Context
                           (LPair (LinReg $ BitsVec 5) -- reg idx
                                  (LinReg $ BitsVec 32))) -- pc
 
+ContextExt': Type
+ContextExt' = LPair LinRegF
+                    (LPair (LinReg $ BitsVec 1)       --sign
+                   $ LPair (LinReg $ OP) -- op
+                           (LPair (LinReg $ BitsVec 5) -- reg idx
+                                  (LinReg $ BitsVec 32))) -- pc
+
 arith : AOP -> (BitsVec 32, BitsVec 32) -> BitsVec 32
 arith ADD  = bv_cast_32 . uncurry bv_add
 arith SUB  = bv_cast_32 . uncurry bv_sub
@@ -51,16 +58,21 @@ cmp_fn (B BLTU) op1 op2 = bv_ltu op1 op2
 cmp_fn (B BGEU) op1 op2 = bv_neg $ bv_ltu op1 op2
 cmp_fn _  op1 op2 = bv_eq op1 op2
 
-read_fn: LinContext () ContextExt 
-      -@ LinContext 
-           (OP, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 5, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 1) 
-           ContextExt
-read_fn (MkLC () ((mem # regf # pc) # (sign # op # reg_idx # saved_pc))) = 
+read_fn1: LinContext () (LPair LinMem PC)
+          -@ LinContext (BitsVec 32, BitsVec 32) (LPair LinMem PC)
+read_fn1 (MkLC () (mem # pc)) = 
+  let addr     # pc'   = reg_read pc 
+      mem_data # mem'  = mem_read addr mem
+  in MkLC (addr, mem_data) (mem' # pc')
+
+read_fn2: LinContext (BitsVec 32, BitsVec 32) ContextExt' 
+       -@ LinContext 
+            (OP, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 5, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 1) 
+            ContextExt'
+read_fn2 (MkLC (addr, mem_data) (regf # (sign # op # reg_idx # saved_pc))) = 
   let sign_    # sign' = reg_read sign
-      addr     # pc'   = reg_read pc
       pc_2     # saved_pc' = reg_read saved_pc
       pc_ = if (sign_ == (MkBitsVec 1)) then pc_2 else addr
-      mem_data # mem'  = mem_read addr mem
       r'       # reg_idx' = reg_read reg_idx
       (MkInst opc1 rs1 rs2' rd imm) = decode mem_data
       rs2 = if (sign_ == (MkBitsVec 1)) then r' else rs2'
@@ -70,7 +82,30 @@ read_fn (MkLC () ((mem # regf # pc) # (sign # op # reg_idx # saved_pc))) =
       rd = if (sign_ == (MkBitsVec 1)) then r' else rd
       opc = if (sign_ == (MkBitsVec 1)) then opc2 else opc1
   in (MkLC (opc, op1, op2, rs2, rd, imm, pc_, addr, mem_data, sign_) 
-           ((mem' # regf'' # pc') # (sign' # op' # reg_idx' # saved_pc')))
+           (regf'' # (sign' # op' # reg_idx' # saved_pc')))
+                              
+read_fn: LinContext () ContextExt
+      -@ LinContext 
+           (OP, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 5, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 1) 
+           ContextExt
+read_fn (MkLC () ((mem # regf # pc) # (sign # op # reg_idx # saved_pc))) = 
+  let MkLC read_sig ((mem' # pc') # (regf' # (sign' # op' # reg_idx' # saved_pc'))) =
+        (read_fn2 <<< read_fn1) $ MkLC () $ (mem # pc) # (regf # (sign # op # reg_idx # saved_pc))
+  -- let sign_    # sign' = reg_read sign
+  --     addr     # pc'   = reg_read pc
+  --     pc_2     # saved_pc' = reg_read saved_pc
+  --     pc_ = if (sign_ == (MkBitsVec 1)) then pc_2 else addr
+  --     mem_data # mem'  = mem_read addr mem
+  --     r'       # reg_idx' = reg_read reg_idx
+  --     (MkInst opc1 rs1 rs2' rd imm) = decode mem_data
+  --     rs2 = if (sign_ == (MkBitsVec 1)) then r' else rs2'
+  --     opc2     # op'   = reg_read op
+  --     op1      # regf' = regf_read rs1 regf
+  --     op2      # regf'' = regf_read rs2 regf' 
+  --     rd = if (sign_ == (MkBitsVec 1)) then r' else rd
+  --     opc = if (sign_ == (MkBitsVec 1)) then opc2 else opc1
+  in MkLC read_sig
+          ((mem' # regf' # pc') # (sign' # op' # reg_idx' # saved_pc'))
 
 write_mem_fn: BitsVec 1 -> OP 
            -> LinContext (BitsVec 32, BitsVec 32) LinMem
