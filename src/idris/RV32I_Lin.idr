@@ -163,18 +163,12 @@ write_fn sign_ opc = (fst >@ id)
 res_fn : OP 
       -> (BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)
       -> BitsVec 32
-res_fn (MERGED RR op) (a_op1_op2, a_op1_imm, mem_data, pc_add_4, res_ui) = a_op1_op2
-res_fn (MERGED RI op) (a_op1_op2, a_op1_imm, mem_data, pc_add_4, res_ui) = a_op1_imm
-res_fn (IJ op) (a_op1_op2, a_op1_imm, mem_data, pc_add_4, res_ui) = pc_add_4
-res_fn (I2 op) (a_op1_op2, a_op1_imm, mem_data, pc_add_4, res_ui) = 
-  case op of
-    LB  => bv_cast_32 $ bv_sign_ext $ bv_get_range 0 8 mem_data 
-    LH  => bv_cast_32 $ bv_sign_ext $ bv_get_range 0 16 mem_data
-    LW  => mem_data                                             
-    LBU => bv_cast_32 $ bv_zero_ext $ bv_get_range 0 8 mem_data 
-    LHU => bv_cast_32 $ bv_zero_ext $ bv_get_range 0 16 mem_data
-res_fn (U op) (a_op1_op2, a_op1_imm, mem_data, pc_add_4, res_ui) = res_ui
-res_fn (J op) (a_op1_op2, a_op1_imm, mem_data, pc_add_4, res_ui) = pc_add_4
+res_fn (MERGED RR _) (a_op1_op2, a_op1_imm, mem_data_r, pc_add_4, res_ui) = a_op1_op2
+res_fn (MERGED RI _) (a_op1_op2, a_op1_imm, mem_data_r, pc_add_4, res_ui) = a_op1_imm
+res_fn (IJ _)        (a_op1_op2, a_op1_imm, mem_data_r, pc_add_4, res_ui) = pc_add_4
+res_fn (I2 _)        (a_op1_op2, a_op1_imm, mem_data_r, pc_add_4, res_ui) = mem_data_r
+res_fn (U _)         (a_op1_op2, a_op1_imm, mem_data_r, pc_add_4, res_ui) = res_ui
+res_fn (J _)         (a_op1_op2, a_op1_imm, mem_data_r, pc_add_4, res_ui) = pc_add_4
 res_fn _ _ = MkBitsVec 0
 
 pc_fn: OP -> BitsVec 1 -> BitsVec 1
@@ -204,11 +198,8 @@ w_addr_fn _      (op1_imm, addr) = addr
 w_dat_fn: OP
        -> (BitsVec 32, BitsVec 32)
        -> BitsVec 32
-w_dat_fn (S1 _)  (op2, mem_data) = op2
-w_dat_fn (S2 op) (op2, mem_data) = 
-  case op of
-    SB => bv_concatenate (bv_get_range 8 32 mem_data)  (bv_get_range 0 8 op2)
-    SH => bv_concatenate (bv_get_range 16 32 mem_data) (bv_get_range 0 16 op2)
+w_dat_fn (S1 _)  (op2, mem_data_w) = op2
+w_dat_fn (S2 _)  (op2, mem_data_w) = mem_data_w
 w_dat_fn _ _ = MkBitsVec 0
 
 pc_inc : BitsVec 32 -> BitsVec 32
@@ -243,7 +234,20 @@ rv32i (MkLC () ctx) =
               (B op) => b_fn1 op op1 op2
               _ => MkBitsVec 0
       
-      res = res_fn opc (a_op1_op2, a_op1_imm, mem_data, pc_add_4, res_ui)
+      mem_data_w = case opc of 
+                     (S2 SB) => bv_concatenate (bv_get_range 8  32 mem_data)  (bv_get_range 0 8  op2)
+                     (S2 SH) => bv_concatenate (bv_get_range 16 32 mem_data)  (bv_get_range 0 16 op2)
+                     _ => MkBitsVec 0
+      
+      mem_data_r = case opc of
+                     (I2 LB)  => bv_cast_32 $ bv_sign_ext $ bv_get_range 0 8 mem_data 
+                     (I2 LH)  => bv_cast_32 $ bv_sign_ext $ bv_get_range 0 16 mem_data
+                     (I2 LW)  => mem_data                                             
+                     (I2 LBU) => bv_cast_32 $ bv_zero_ext $ bv_get_range 0 8 mem_data 
+                     (I2 LHU) => bv_cast_32 $ bv_zero_ext $ bv_get_range 0 16 mem_data
+                     _ => MkBitsVec 0 
+                     
+      res = res_fn opc (a_op1_op2, a_op1_imm, mem_data_r, pc_add_4, res_ui)
         
       pc_' = pc_fn opc sign_ cmp (pc_, pc_add_4, pc_imm, op1_imm)
         
@@ -251,7 +255,7 @@ rv32i (MkLC () ctx) =
 
       w_addr = w_addr_fn opc (op1_imm, addr)
         
-      w_dat  = w_dat_fn opc (op2, mem_data)
+      w_dat  = w_dat_fn opc (op2, mem_data_w)
       
   in write_fn sign_ opc $ MkLC ((w_addr, w_dat), (rd, res), (pc_', r_addr), rs2) ctx'
 
