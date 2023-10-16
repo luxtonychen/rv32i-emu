@@ -161,14 +161,13 @@ write_fn sign_ opc = (fst >@ id)
                    . (write_in_expand >@ id)
 
 res_fn : OP 
-      -> (BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)
+      -> (BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)
       -> BitsVec 32
-res_fn (MERGED RR _) (a_op1_op2, a_op1_imm, mem_data_r, pc_add_4, res_ui) = a_op1_op2
-res_fn (MERGED RI _) (a_op1_op2, a_op1_imm, mem_data_r, pc_add_4, res_ui) = a_op1_imm
-res_fn (IJ _)        (a_op1_op2, a_op1_imm, mem_data_r, pc_add_4, res_ui) = pc_add_4
-res_fn (I2 _)        (a_op1_op2, a_op1_imm, mem_data_r, pc_add_4, res_ui) = mem_data_r
-res_fn (U _)         (a_op1_op2, a_op1_imm, mem_data_r, pc_add_4, res_ui) = res_ui
-res_fn (J _)         (a_op1_op2, a_op1_imm, mem_data_r, pc_add_4, res_ui) = pc_add_4
+res_fn (MERGED _ _)  (a_res, mem_data_r, pc_add_4, res_ui) = a_res
+res_fn (IJ _)        (a_res, mem_data_r, pc_add_4, res_ui) = pc_add_4
+res_fn (I2 _)        (a_res, mem_data_r, pc_add_4, res_ui) = mem_data_r
+res_fn (U _)         (a_res, mem_data_r, pc_add_4, res_ui) = res_ui
+res_fn (J _)         (a_res, mem_data_r, pc_add_4, res_ui) = pc_add_4
 res_fn _ _ = MkBitsVec 0
 
 pc_fn: OP -> BitsVec 1 -> BitsVec 1
@@ -216,14 +215,15 @@ rv32i (MkLC () ctx) =
       pc_add_4 = pc_inc pc_
       pc_imm   = pc_ `bv_add_32` imm
       op1_imm  = op1 `bv_add_32` imm
-        
-      a_op1_op2 = case opc of
-                    (MERGED RR op) => arith op (op1, op2)
-                    _ => MkBitsVec 0
-                    
-      a_op1_imm = case opc of
-                    (MERGED RI op) => arith op (op1, imm)
-                    _ => MkBitsVec 0
+      
+      a_op2: BitsVec 32 = case opc of
+                            (MERGED RR _) => op2
+                            (MERGED RI _) => imm
+                            _ => MkBitsVec 0
+      
+      a_res = case opc of
+                (MERGED _ op) => arith op (op1, a_op2)
+                _ => MkBitsVec 0
                     
       res_ui = case opc of 
                  (U LUI) => imm
@@ -247,9 +247,9 @@ rv32i (MkLC () ctx) =
                      (I2 LHU) => bv_cast_32 $ bv_zero_ext $ bv_get_range 0 16 mem_data
                      _ => MkBitsVec 0 
                      
-      res = res_fn opc (a_op1_op2, a_op1_imm, mem_data_r, pc_add_4, res_ui)
+      res    = res_fn opc (a_res, mem_data_r, pc_add_4, res_ui)
         
-      pc_' = pc_fn opc sign_ cmp (pc_, pc_add_4, pc_imm, op1_imm)
+      pc_'   = pc_fn opc sign_ cmp (pc_, pc_add_4, pc_imm, op1_imm)
         
       r_addr = r_addr_fn opc op1_imm
 
