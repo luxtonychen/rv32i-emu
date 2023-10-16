@@ -90,29 +90,32 @@ read_fn: LinContext () ContextExt
            ContextExt
 read_fn (MkLC () ((mem # regf # pc) # (sign # op # reg_idx # saved_pc))) = 
   let MkLC read_sig ((mem' # pc') # (regf' # (sign' # op' # reg_idx' # saved_pc'))) =
-        (read_fn2 <<< read_fn1) $ MkLC () $ (mem # pc) # (regf # (sign # op # reg_idx # saved_pc))
-  -- let sign_    # sign' = reg_read sign
-  --     addr     # pc'   = reg_read pc
-  --     pc_2     # saved_pc' = reg_read saved_pc
-  --     pc_ = if (sign_ == (MkBitsVec 1)) then pc_2 else addr
-  --     mem_data # mem'  = mem_read addr mem
-  --     r'       # reg_idx' = reg_read reg_idx
-  --     (MkInst opc1 rs1 rs2' rd imm) = decode mem_data
-  --     rs2 = if (sign_ == (MkBitsVec 1)) then r' else rs2'
-  --     opc2     # op'   = reg_read op
-  --     op1      # regf' = regf_read rs1 regf
-  --     op2      # regf'' = regf_read rs2 regf' 
-  --     rd = if (sign_ == (MkBitsVec 1)) then r' else rd
-  --     opc = if (sign_ == (MkBitsVec 1)) then opc2 else opc1
+          (read_fn2 <<< read_fn1) 
+        $ MkLC () $ (mem # pc) # (regf # (sign # op # reg_idx # saved_pc))
   in MkLC read_sig
           ((mem' # regf' # pc') # (sign' # op' # reg_idx' # saved_pc'))
+
+mem_write_sig_gen: BitsVec 1 -> OP 
+                -> (BitsVec 32, BitsVec 32) 
+                -> (BitsVec 1, BitsVec 32, BitsVec 32)
+mem_write_sig_gen (MkBitsVec 1) (S2 _) (addr, dat) = (MkBitsVec 1, addr, dat)
+mem_write_sig_gen (MkBitsVec 0) (S1 _) (addr, dat) = (MkBitsVec 1, addr, dat)
+mem_write_sig_gen _  _ (addr, dat) = (MkBitsVec 0, addr, dat)
+
+write_mem_fn1: LinContext (BitsVec 1, BitsVec 32, BitsVec 32) LinMem
+            -@ LinContext () LinMem
+write_mem_fn1 (MkLC ((MkBitsVec 1), addr, dat) mem) = MkLC () $ mem_write addr dat mem
+write_mem_fn1 (MkLC (_, addr, dat) mem) = MkLC () mem
+
 
 write_mem_fn: BitsVec 1 -> OP 
            -> LinContext (BitsVec 32, BitsVec 32) LinMem
            -@ LinContext () LinMem
-write_mem_fn (MkBitsVec 1) (S2 _) (MkLC (addr, dat) mem) = MkLC () $ mem_write addr dat mem
-write_mem_fn (MkBitsVec 0) (S1 _) (MkLC (addr, dat) mem) = MkLC () $ mem_write addr dat mem
-write_mem_fn _  _ (MkLC (addr, dat) mem) = MkLC () mem
+write_mem_fn sign_ opc = write_mem_fn1 . ((mem_write_sig_gen sign_ opc) >@ id)
+           
+-- write_mem_fn (MkBitsVec 1) (S2 _) (MkLC (addr, dat) mem) = MkLC () $ mem_write addr dat mem
+-- write_mem_fn (MkBitsVec 0) (S1 _) (MkLC (addr, dat) mem) = MkLC () $ mem_write addr dat mem
+-- write_mem_fn _  _ (MkLC (addr, dat) mem) = MkLC () mem
 
 write_regf_fn: BitsVec 1 -> OP 
            -> LinContext (BitsVec 5, BitsVec 32) LinRegF
