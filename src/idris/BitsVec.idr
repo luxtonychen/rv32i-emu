@@ -221,7 +221,28 @@ bv_ltu {n} (MkBitsVec v1) (MkBitsVec v2) =
     let n'  = lenToBits n 
         val = bv_ltu_val n' v1 n' v2 
     in MkBitsVec val
-  
+
+%foreign (lib_bv "bv_get_imm_b")
+bv_get_imm_b_val : UnaryValFn
+
+export
+bv_get_imm_b: BitsVec 32 -> BitsVec 32
+bv_get_imm_b (MkBitsVec v) = MkBitsVec $ bv_get_imm_b_val 32 v
+
+%foreign (lib_bv "bv_get_imm_j")
+bv_get_imm_j_val : UnaryValFn
+
+export
+bv_get_imm_j: BitsVec 32 -> BitsVec 32
+bv_get_imm_j (MkBitsVec v) = MkBitsVec $ bv_get_imm_j_val 32 v
+
+%foreign (lib_bv "bv_get_imm_s")
+bv_get_imm_s_val : UnaryValFn
+
+export
+bv_get_imm_s: BitsVec 32 -> BitsVec 32
+bv_get_imm_s (MkBitsVec v) = MkBitsVec $ bv_get_imm_s_val 32 v
+                  
 %foreign (lib_bv "bv_to_string")
 bv_to_string' : Bits8 -> Bits64 -> String
 
@@ -244,3 +265,37 @@ export
 export
 Eq (BitsVec n) where
   (==) (MkBitsVec m) (MkBitsVec n) = m == n
+
+
+
+export
+bv_cast_32 : {n: _} -> BitsVec n -> BitsVec 32
+bv_cast_32 = bv_get_range 0 32  
+
+export
+bv_add_32: BitsVec 32 -> BitsVec 32 -> BitsVec 32
+bv_add_32 x y = bv_cast_32 $ x `bv_add` y
+                  
+export
+bv_compose_b: BitsVec 32 -> BitsVec 32 -> BitsVec 32
+bv_compose_b x y = bv_concatenate (bv_get_range 8 32 y)  (bv_get_range 0 8 x)
+
+export
+bv_compose_h: BitsVec 32 -> BitsVec 32 -> BitsVec 32
+bv_compose_h x y = bv_concatenate (bv_get_range 16 32 y)  (bv_get_range 0 16 x)
+
+export
+bv_get_lower_sb: BitsVec 32 -> BitsVec 32
+bv_get_lower_sb x = bv_cast_32 $ bv_sign_ext $ bv_get_range 0 8 x
+
+export
+bv_get_lower_sh: BitsVec 32 -> BitsVec 32
+bv_get_lower_sh x = bv_cast_32 $ bv_sign_ext $ bv_get_range 0 16 x
+
+export
+bv_get_lower_ub: BitsVec 32 -> BitsVec 32
+bv_get_lower_ub x = bv_cast_32 $ bv_zero_ext $ bv_get_range 0 8 x
+
+export
+bv_get_lower_uh: BitsVec 32 -> BitsVec 32
+bv_get_lower_uh x = bv_cast_32 $ bv_zero_ext $ bv_get_range 0 16 x

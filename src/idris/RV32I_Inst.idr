@@ -181,17 +181,17 @@ get_op_code (MkBitsVec 0x17) = U2 --Opcode 0010111
 get_op_code _ = NA'
 
 
-bv_compose_4 : {n: _} 
-  -> (r1 : (LenTy, LenTy)) -> (r2 : (LenTy, LenTy)) 
-  -> (r3 : (LenTy, LenTy)) -> (r4 : (LenTy, LenTy))
-  -> BitsVec n 
-  -> BitsVec (((snd r1) |-| (fst r1)) |+| ((snd r2) |-| (fst r2))
-          |+| ((snd r3) |-| (fst r3)) |+| ((snd r4) |-| (fst r4)))
-bv_compose_4 (l1, h1) (l2, h2) (l3, h3) (l4, h4) bv = 
-  bv_concatenate (bv_get_range l1 h1 bv) 
- (bv_concatenate (bv_get_range l2 h2 bv) 
- (bv_concatenate (bv_get_range l3 h3 bv) 
-                 (bv_get_range l4 h4 bv)))
+-- bv_compose_4 : {n: _} 
+--   -> (r1 : (LenTy, LenTy)) -> (r2 : (LenTy, LenTy)) 
+--   -> (r3 : (LenTy, LenTy)) -> (r4 : (LenTy, LenTy))
+--   -> BitsVec n 
+--   -> BitsVec (((snd r1) |-| (fst r1)) |+| ((snd r2) |-| (fst r2))
+--           |+| ((snd r3) |-| (fst r3)) |+| ((snd r4) |-| (fst r4)))
+-- bv_compose_4 (l1, h1) (l2, h2) (l3, h3) (l4, h4) bv = 
+--   bv_concatenate (bv_get_range l1 h1 bv) 
+--  (bv_concatenate (bv_get_range l2 h2 bv) 
+--  (bv_concatenate (bv_get_range l3 h3 bv) 
+--                  (bv_get_range l4 h4 bv)))
 
 
 decode': (dr: BitsVec 5) -> (di: BitsVec 32) -> BitsVec 32 -> Inst
@@ -224,7 +224,7 @@ decode' dr di bv =
                       (Just (idx, aop)) => MkInst (MERGED idx aop) b_15_19 b_20_24 b_7_11 di
                       Nothing  => MkInst NA dr dr dr di
                       
-           I' => let imm = bv_sign_ext_32 $ bv_concatenate b_25_31 b_20_24
+           I' => let imm = bv_sign_ext_32 $ bv_get_range 20 32 bv
                      iop : Maybe (IDX, AOP) = case b_12_14 of
                                                 (MkBitsVec 0x0) => Just (RI, ADD)
                                                 (MkBitsVec 0x1) => Just (RI, SLL)
@@ -242,7 +242,7 @@ decode' dr di bv =
                       (Just (idx, aop)) => MkInst (MERGED idx aop) b_15_19 dr b_7_11 imm
                       Nothing  => MkInst NA dr dr dr di
                       
-           L' => let imm = bv_sign_ext_32 $ bv_concatenate b_25_31 b_20_24
+           L' => let imm = bv_sign_ext_32 $ bv_get_range 20 32 bv --$ bv_concatenate b_25_31 b_20_24
                      lop : Maybe IOP2 = case b_12_14 of
                                           (MkBitsVec 0x0) => Just LB 
                                           (MkBitsVec 0x1) => Just LH 
@@ -254,16 +254,14 @@ decode' dr di bv =
                       (Just x) => MkInst (I2 x) b_15_19 dr b_7_11 imm
                       Nothing  => MkInst NA dr dr dr di
                       
-           S' => let imm = bv_sign_ext_32 $ bv_concatenate b_25_31 b_7_11
+           S' => let imm = bv_get_imm_s bv --bv_sign_ext_32 $ bv_concatenate b_25_31 b_7_11
                  in case b_12_14 of
                       (MkBitsVec 0x0) => MkInst (S2 SB) b_15_19 b_20_24 dr imm
                       (MkBitsVec 0x1) => MkInst (S2 SH) b_15_19 b_20_24 dr imm
                       (MkBitsVec 0x2) => MkInst (S1 SW) b_15_19 b_20_24 dr imm
                       _ => MkInst NA dr dr dr di
                    
-           B' => let imm = bv_sign_ext_32 $ (bv_concatenate 
-                                              (bv_compose_4 (31, 32) (7, 8) (25, 31) (8, 12) bv)
-                                              (the (BitsVec 1) (MkBitsVec 0)))
+           B' => let imm = bv_get_imm_b bv 
                      bop : Maybe BOP = case b_12_14 of
                                          (MkBitsVec 0x0) => Just BEQ  
                                          (MkBitsVec 0x1) => Just BNE 
@@ -276,22 +274,15 @@ decode' dr di bv =
                       (Just x) => MkInst (B x) b_15_19 b_20_24 dr imm
                       Nothing => MkInst NA dr dr dr di
                      
-           J1 => let imm = bv_sign_ext_32 
-                         $ (bv_concatenate 
-                             (bv_compose_4 (31, 32) (12, 20) (20, 21) (21, 31) bv)
-                             (the (BitsVec 1) (MkBitsVec 0))) 
+           J1 => let imm = bv_get_imm_j bv
                  in MkInst (J JAL) dr dr b_7_11 imm
                  
            J2 => MkInst (IJ JALR) b_15_19 dr b_7_11 (bv_sign_ext_32 $ bv_get_range 20 32 bv)
            
-           U1 => let imm = (bv_get_range 0 32 
-                          $ bv_sll {m = 8} (bv_zero_ext (bv_get_range 12 32 bv)) 
-                          $ MkBitsVec 12)
+           U1 => let imm = bv `bv_and` (MkBitsVec 0xfffff000)
                  in MkInst (U LUI) dr dr b_7_11 imm
                  
-           U2 => let imm = (bv_get_range 0 32 
-                          $ bv_sll {m = 8} (bv_zero_ext (bv_get_range 12 32 bv)) 
-                          $ MkBitsVec 12)
+           U2 => let imm = bv `bv_and` (MkBitsVec 0xfffff000) 
                  in MkInst (U AUIPC) dr dr b_7_11 imm
                  
            _ => MkInst NA dr dr dr di

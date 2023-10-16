@@ -179,6 +179,29 @@ uint64_t bv_ltu_val(BV(1), BV(2)) {
   return (bv_zero_ext_val(bv(1)) < bv_zero_ext_val(bv(2))) ? 1 : 0;
 }
 
+uint64_t bv_get_imm_b(BV()) {
+  uint64_t f = ((val & (0x1LL  << 31)) >> 19)	\
+             + ((val & (0x1LL  << 7))  << 4)	\
+             + ((val & (0x3fLL << 25)) >> 20)	\
+             + ((val & (0xfLL  << 8))  >> 7);
+  return bv_sign_ext_val(13, (f & 0x1fffLL)) & 0xffffffff;
+}
+
+uint64_t bv_get_imm_j(BV()) {
+  uint64_t f = ((val & (0x1LL   << 31)) >> 10)	\
+             + (val  & (0xffLL  << 12))	        \
+             + ((val & (0x1LL   << 20)) >> 9)	\
+             + ((val & (0x3ffLL << 21)) >> 20);
+  return bv_sign_ext_val(21, (f & 0x1fffffLL)) & 0xffffffff;
+}
+
+uint64_t bv_get_imm_s(BV()) {
+  uint64_t f = ((val & (0x7fLL << 25)) >> 20)	\
+             + ((val & (0x1fLL << 7)) >> 7);
+  
+  return bv_sign_ext_val(12, (f & 0xfffLL)) & 0xffffffff;
+}
+
 void _bv_to_string(BV(1), char* buf) {
   int8_t i = 0;
   int8_t len = (len1 >= 64) ? 64 : len1;
