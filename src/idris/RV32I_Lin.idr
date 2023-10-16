@@ -163,33 +163,30 @@ write_fn sign_ opc = (fst >@ id)
 res_fn : OP 
       -> (BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)
       -> BitsVec 32
-res_fn (MERGED RR op) (op1, op2, imm, pc_, mem_data) = arith op (op1, op2)
-res_fn (MERGED RI op) (op1, op2, imm, pc_, mem_data) = arith op (op1, imm)
-res_fn (IJ op) (op1, op2, imm, pc_, mem_data) = bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
-res_fn (I2 op) (op1, op2, imm, pc_, mem_data) = 
+res_fn (MERGED RR op) (a_op1_op2, a_op1_imm, mem_data, pc_add_4, res_ui) = a_op1_op2
+res_fn (MERGED RI op) (a_op1_op2, a_op1_imm, mem_data, pc_add_4, res_ui) = a_op1_imm
+res_fn (IJ op) (a_op1_op2, a_op1_imm, mem_data, pc_add_4, res_ui) = pc_add_4
+res_fn (I2 op) (a_op1_op2, a_op1_imm, mem_data, pc_add_4, res_ui) = 
   case op of
     LB  => bv_cast_32 $ bv_sign_ext $ bv_get_range 0 8 mem_data 
     LH  => bv_cast_32 $ bv_sign_ext $ bv_get_range 0 16 mem_data
     LW  => mem_data                                             
     LBU => bv_cast_32 $ bv_zero_ext $ bv_get_range 0 8 mem_data 
     LHU => bv_cast_32 $ bv_zero_ext $ bv_get_range 0 16 mem_data
-res_fn (U op) (op1, op2, imm, pc_, mem_data) =
-  case op of                                   
-    LUI => imm                                 
-    AUIPC => bv_cast_32 $ bv_add pc_ imm
-res_fn (J op) (op1, op2, imm, pc_, mem_data) = bv_cast_32 $ pc_ `bv_add` MkBitsVec 4
+res_fn (U op) (a_op1_op2, a_op1_imm, mem_data, pc_add_4, res_ui) = res_ui
+res_fn (J op) (a_op1_op2, a_op1_imm, mem_data, pc_add_4, res_ui) = pc_add_4
 res_fn _ _ = MkBitsVec 0
 
 pc_fn: OP -> BitsVec 1 -> BitsVec 1
     -> (BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)
     -> BitsVec 32
-pc_fn (IJ _) _ _             (pc_, pc_add_4, pc_imm, op1_imm) = op1_imm
-pc_fn (B op) _ (MkBitsVec 1) (pc_, pc_add_4, pc_imm, op1_imm) = pc_imm
-pc_fn (B op) _ _             (pc_, pc_add_4, pc_imm, op1_imm) = pc_add_4
-pc_fn (J  _) _ _             (pc_, pc_add_4, pc_imm, op1_imm) = pc_imm
-pc_fn (I2 _) (MkBitsVec 0) _ (pc_, pc_add_4, pc_imm, op1_imm) = pc_
-pc_fn (S2 _) (MkBitsVec 0) _ (pc_, pc_add_4, pc_imm, op1_imm) = pc_
-pc_fn _ _ _                  (pc_, pc_add_4, pc_imm, op1_imm) = pc_add_4
+pc_fn (IJ _) _             _             (pc_, pc_add_4, pc_imm, op1_imm) = op1_imm
+pc_fn (B op) _             (MkBitsVec 1) (pc_, pc_add_4, pc_imm, op1_imm) = pc_imm
+pc_fn (B op) _             _             (pc_, pc_add_4, pc_imm, op1_imm) = pc_add_4
+pc_fn (J  _) _             _             (pc_, pc_add_4, pc_imm, op1_imm) = pc_imm
+pc_fn (I2 _) (MkBitsVec 0) _             (pc_, pc_add_4, pc_imm, op1_imm) = pc_
+pc_fn (S2 _) (MkBitsVec 0) _             (pc_, pc_add_4, pc_imm, op1_imm) = pc_
+pc_fn _ _ _                              (pc_, pc_add_4, pc_imm, op1_imm) = pc_add_4
 
 r_addr_fn: OP 
         -> BitsVec 32
@@ -199,15 +196,15 @@ r_addr_fn (S2 _) op1_imm = op1_imm
 r_addr_fn _ _ = MkBitsVec 0
 
 w_addr_fn: OP 
-        -> (BitsVec 32, BitsVec 32, BitsVec 32)
+        -> (BitsVec 32, BitsVec 32)
         -> BitsVec 32
-w_addr_fn (S1 _) (op1, imm, addr) = bv_cast_32 $ op1 `bv_add` imm
-w_addr_fn _ (op1, imm, addr) = addr
+w_addr_fn (S1 _) (op1_imm, addr) = op1_imm
+w_addr_fn _      (op1_imm, addr) = addr
 
 w_dat_fn: OP
        -> (BitsVec 32, BitsVec 32)
        -> BitsVec 32
-w_dat_fn (S1 _) (op2, mem_data) = op2
+w_dat_fn (S1 _)  (op2, mem_data) = op2
 w_dat_fn (S2 op) (op2, mem_data) = 
   case op of
     SB => bv_concatenate (bv_get_range 8 32 mem_data)  (bv_get_range 0 8 op2)
@@ -228,61 +225,75 @@ rv32i (MkLC () ctx) =
       pc_add_4 = pc_inc pc_
       pc_imm   = pc_ `bv_add_32` imm
       op1_imm  = op1 `bv_add_32` imm
+        
+      a_op1_op2 = case opc of
+                    (MERGED RR op) => arith op (op1, op2)
+                    _ => MkBitsVec 0
+                    
+      a_op1_imm = case opc of
+                    (MERGED RI op) => arith op (op1, imm)
+                    _ => MkBitsVec 0
+                    
+      res_ui = case opc of 
+                 (U LUI) => imm
+                 (U AUIPC) => pc_imm
+                 _ => MkBitsVec 0
+                    
       cmp = case opc of
               (B op) => b_fn1 op op1 op2
               _ => MkBitsVec 0
       
-      res = res_fn opc (op1, op2, imm, pc_, mem_data)
+      res = res_fn opc (a_op1_op2, a_op1_imm, mem_data, pc_add_4, res_ui)
         
       pc_' = pc_fn opc sign_ cmp (pc_, pc_add_4, pc_imm, op1_imm)
         
       r_addr = r_addr_fn opc op1_imm
 
-      w_addr = w_addr_fn opc (op1, imm, addr)
+      w_addr = w_addr_fn opc (op1_imm, addr)
         
       w_dat  = w_dat_fn opc (op2, mem_data)
       
   in write_fn sign_ opc $ MkLC ((w_addr, w_dat), (rd, res), (pc_', r_addr), rs2) ctx'
 
--- eval: String -> Nat -> IO ()
--- eval i_file n = 
---   let mem = mem_load i_file
---       reg = mem_create (4*32)
---       pc : PC    = reg_make (MkBitsVec 0)
---       1 sign     = reg_make (MkBitsVec 0)
---       1 op       = reg_make (I2 LB)
---       1 reg_idx  = reg_make (MkBitsVec 5)
---       1 saved_pc = reg_make (MkBitsVec 0)
---       1 ctx = (mem # reg # pc)  # (sign # op # reg_idx # saved_pc)
+eval: String -> Nat -> IO ()
+eval i_file n = 
+  let mem = mem_load i_file
+      reg = mem_create (4*32)
+      pc : PC    = reg_make (MkBitsVec 0)
+      1 sign     = reg_make (MkBitsVec 0)
+      1 op       = reg_make (I2 LB)
+      1 reg_idx  = reg_make (MkBitsVec 5)
+      1 saved_pc = reg_make (MkBitsVec 0)
+      1 ctx = (mem # reg # pc)  # (sign # op # reg_idx # saved_pc)
       
---       MkLC xs ((mem' # reg' # pc') # (sign' # op' # reg_idx' # saved_pc'))
---         = seq_eval rv32i $ MkLC (iterateN n (\() => ()) ()) ctx
+      MkLC xs ((mem' # reg' # pc') # (sign' # op' # reg_idx' # saved_pc'))
+        = seq_eval rv32i $ MkLC (iterateN n (\() => ()) ()) ctx
         
---       (MkBitsVec v) # reg'' = regf_read (the (BitsVec 5) (MkBitsVec 3)) reg'
---       mem_value # mem'' = mem_read {n=32} (MkBitsVec 0x1000) mem'
---       next_pc   # pc''  = reg_read pc'
---       next_inst # mem3  = mem_read next_pc mem''
---       () = consume pc''
---       () = consume sign'
---       () = consume op'
---       () = consume reg_idx'
---       () = consume saved_pc'
---       () = consume mem3
---       () = consume reg''
---   in do putStrLn "================================================================================"
---         putStrLn i_file
---         if mem_value == MkBitsVec 0x11111111 
---           then putStrLn "pass!"
---           else do _ <- fPutStrLn stderr "Next inst:"
---                   _ <- fPutStrLn stderr (show $ decode next_inst)
---                   _ <- fPutStrLn stderr ("Value in gp (x3, Count of tests): " ++ (show v))
---                   _ <- fPutStrLn stderr "fail!"
---                   pure ()
---         pure ()
+      (MkBitsVec v) # reg'' = regf_read (the (BitsVec 5) (MkBitsVec 3)) reg'
+      mem_value # mem'' = mem_read {n=32} (MkBitsVec 0x1000) mem'
+      next_pc   # pc''  = reg_read pc'
+      next_inst # mem3  = mem_read next_pc mem''
+      () = consume pc''
+      () = consume sign'
+      () = consume op'
+      () = consume reg_idx'
+      () = consume saved_pc'
+      () = consume mem3
+      () = consume reg''
+  in do putStrLn "================================================================================"
+        putStrLn i_file
+        if mem_value == MkBitsVec 0x11111111 
+          then putStrLn "pass!"
+          else do _ <- fPutStrLn stderr "Next inst:"
+                  _ <- fPutStrLn stderr (show $ decode next_inst)
+                  _ <- fPutStrLn stderr ("Value in gp (x3, Count of tests): " ++ (show v))
+                  _ <- fPutStrLn stderr "fail!"
+                  pure ()
+        pure ()
 
--- main : IO ()
--- main = do args <- getArgs
---           case args of
---             _ :: (y :: (z :: [])) => eval y $ stringToNatOrZ z
---             _ => do printLn "Invalid Arguments!"
---                     pure ()
+main : IO ()
+main = do args <- getArgs
+          case args of
+            _ :: (y :: (z :: [])) => eval y $ stringToNatOrZ z
+            _ => do printLn "Invalid Arguments!"
+                    pure ()
