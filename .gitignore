@@ -109,6 +109,7 @@ Mkfile.old
 dkms.conf
 
 *.bin
+./pynq-testbed/rv32i/.ipynb_checkpoints/
 
 src/idris/build
 src/idris/remove
