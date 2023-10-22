@@ -41,10 +41,12 @@ PC = LinReg (BitsVec 32)
 MemCtx: Type
 MemCtx = (LPair LinMem PC)
 
+TempCtx: Type
+TempCtx = (LPair (LinReg $ BitsVec 1) $ LPair (LinReg $ OP)
+          (LPair (LinReg $ BitsVec 5) (LinReg $ BitsVec 32)))
+          
 LocalCtx: Type
-LocalCtx = (LPair LinRegF
-           (LPair (LinReg $ BitsVec 1) $ LPair (LinReg $ OP)
-           (LPair (LinReg $ BitsVec 5) (LinReg $ BitsVec 32))))
+LocalCtx = (LPair LinRegF TempCtx)
 
 ContextExt: Type
 ContextExt = LPair MemCtx LocalCtx
@@ -79,24 +81,27 @@ read_fn1 (MkLC () (mem # pc)) =
       mem_data # mem'  = mem_read addr mem
   in MkLC (addr, mem_data) (mem' # pc')
 
-read_fn2: LinContext (BitsVec 32, BitsVec 32) LocalCtx
+sel: BitsVec 1 -> a -> a -> a
+sel (MkBitsVec 1) x y = x
+sel (MkBitsVec _) x y = y
+
+read_fn2: LinContext () TempCtx
        -@ LinContext 
-            (OP, BitsVec 32, BitsVec 32, BitsVec 5, BitsVec 5, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 1) 
-            LocalCtx
-read_fn2 (MkLC (addr, mem_data) (regf # (sign # op # reg_idx # saved_pc))) = 
+            (OP, BitsVec 5, BitsVec 32, BitsVec 1) TempCtx
+read_fn2 (MkLC () (sign # op # reg_idx # saved_pc)) = 
   let sign_    # sign' = reg_read sign
       pc_2     # saved_pc' = reg_read saved_pc
-      pc_ = if (sign_ == (MkBitsVec 1)) then pc_2 else addr
-      r'       # reg_idx' = reg_read reg_idx
-      (MkInst opc1 rs1 rs2' rd imm) = decode mem_data
-      rs2 = if (sign_ == (MkBitsVec 1)) then r' else rs2'
       opc2     # op'   = reg_read op
-      op1      # regf' = regf_read rs1 regf
-      op2      # regf'' = regf_read rs2 regf' 
-      rd = if (sign_ == (MkBitsVec 1)) then r' else rd
-      opc = if (sign_ == (MkBitsVec 1)) then opc2 else opc1
-  in (MkLC (opc, op1, op2, rs2, rd, imm, pc_, addr, mem_data, sign_) 
-           (regf'' # (sign' # op' # reg_idx' # saved_pc')))
+      r'       # reg_idx' = reg_read reg_idx
+      
+  in (MkLC (opc2, r', pc_2, sign_) (sign' # op' # reg_idx' # saved_pc'))
+  
+read_regf: LinContext (BitsVec 5,  BitsVec 5) LinRegF
+        -@ LinContext (BitsVec 32, BitsVec 32) LinRegF
+read_regf (MkLC (rs1, rs2) regf) = 
+  let op1 # regf' = regf_read rs1 regf   
+      op2 # regf'' = regf_read rs2 regf' 
+  in MkLC (op1, op2) regf''
                               
 write_mem_fn1: LinContext (BitsVec 1, BitsVec 32, BitsVec 32) LinMem
             -@ LinContext () LinMem
@@ -110,9 +115,9 @@ write_pc_fn1 (MkLC pc_ pc) = MkLC () $ reg_write pc_ pc
 
 
 ||| input ((addr, dat), (rd, res), (pc_, r_addr))
-write_fn_1: LinContext ((BitsVec 1, BitsVec 32, BitsVec 32), BitsVec 32) MemCtx
-          -@ LinContext () MemCtx
-write_fn_1 = (fst >@ id) . write_mem_fn1 <||> write_pc_fn1
+write_fn1: LinContext ((BitsVec 1, BitsVec 32, BitsVec 32), BitsVec 32) MemCtx
+         -@ LinContext () MemCtx
+write_fn1 = (fst >@ id) . write_mem_fn1 <||> write_pc_fn1
 
 write_regf_fn: BitsVec 1 -> OP 
            -> LinContext (BitsVec 5, BitsVec 32) LinRegF
@@ -130,38 +135,30 @@ write_sign_fn (MkBitsVec 0) (S2 _) (MkLC () sign) = MkLC () $ reg_write (MkBitsV
 write_sign_fn (MkBitsVec 0) (I2 _) (MkLC () sign) = MkLC () $ reg_write (MkBitsVec 1) sign
 write_sign_fn _ _ (MkLC () sign) = MkLC () $ reg_write (MkBitsVec 0) sign
 
-write_op_fn: BitsVec 1 -> OP 
+write_op_fn: OP 
           -> LinContext () (LinReg OP)
           -@ LinContext () (LinReg OP)
-write_op_fn (MkBitsVec 0) (S2 x) (MkLC () op) = MkLC () $ reg_write (S2 x) op
-write_op_fn (MkBitsVec 0) (I2 x) (MkLC () op) = MkLC () $ reg_write (I2 x) op
-write_op_fn _ _ (MkLC () op) = MkLC () op
+write_op_fn opc (MkLC () op) = MkLC () $ reg_write opc op --MkLC () op
 
 write_reg_idx_fn: BitsVec 1 -> OP 
                -> LinContext (BitsVec 5, BitsVec 5) (LinReg $ BitsVec 5)
                -@ LinContext () (LinReg $ BitsVec 5)
 write_reg_idx_fn (MkBitsVec 0) (S2 _) (MkLC (rs2, rd) reg_idx) = MkLC () $ reg_write rs2 reg_idx
-write_reg_idx_fn (MkBitsVec 0) (I2 _) (MkLC (rs2, rd) reg_idx) = MkLC () $ reg_write rd reg_idx
-write_reg_idx_fn _ _ (MkLC (rs2, rd) reg_idx) = MkLC () reg_idx
+write_reg_idx_fn _ _ (MkLC (rs2, rd) reg_idx) = MkLC () $ reg_write rd reg_idx
 
-write_saved_pc_fn: BitsVec 1 -> OP 
-                -> LinContext (BitsVec 32) (LinReg $ BitsVec 32)
+write_saved_pc_fn: LinContext (BitsVec 32) (LinReg $ BitsVec 32)
                 -@ LinContext () (LinReg $ BitsVec 32)
-write_saved_pc_fn (MkBitsVec 0) (S2 _) (MkLC (pc_) saved_pc) = MkLC () $ reg_write pc_ saved_pc
-write_saved_pc_fn (MkBitsVec 0) (I2 _) (MkLC (pc_) saved_pc) = MkLC () $ reg_write pc_ saved_pc
-write_saved_pc_fn _ _ (MkLC (pc_) saved_pc) = MkLC () saved_pc
+write_saved_pc_fn (MkLC (pc_) saved_pc) = MkLC () $ reg_write pc_ saved_pc
 
-write_fn_2: BitsVec 1 -> OP 
-         -> LinContext ((BitsVec 5, BitsVec 32), (), (), (BitsVec 5, BitsVec 5), BitsVec 32)
-                       LocalCtx
-         -@ LinContext () LocalCtx
-write_fn_2 sign_ opc = (fst >@ id) 
-                     . (write_regf_fn sign_ opc) <||> (write_sign_fn sign_ opc) 
-                  <||> (write_op_fn sign_ opc)   <||> (write_reg_idx_fn sign_ opc) 
-                  <||> (write_saved_pc_fn sign_ opc)
+write_fn2: BitsVec 1 -> OP 
+        -> LinContext ((BitsVec 5, BitsVec 32), (), (), (BitsVec 5, BitsVec 5), BitsVec 32)
+                      LocalCtx
+        -@ LinContext () LocalCtx
+write_fn2 sign_ opc = (fst >@ id) 
+                    . (write_regf_fn sign_ opc) <||> (write_sign_fn sign_ opc) 
+                 <||> (write_op_fn opc)         <||> (write_reg_idx_fn sign_ opc) 
+                 <||> (write_saved_pc_fn)
                    
-
-
 
 sel_reg_res : OP 
            -> (BitsVec 32, BitsVec 32, BitsVec 32, BitsVec 32)
@@ -244,12 +241,10 @@ arith_u opc op1 op2 imm =
       a_opc      = sel_a_opc opc
   in arith a_opc (op1, a_op2)
 
-mem_write_sig_gen: BitsVec 1 -> OP 
-                -> (BitsVec 32, BitsVec 32) 
-                -> (BitsVec 1, BitsVec 32, BitsVec 32)
-mem_write_sig_gen (MkBitsVec 1) (S2 _) (addr, dat) = (MkBitsVec 1, addr, dat)
-mem_write_sig_gen (MkBitsVec 0) (S1 _) (addr, dat) = (MkBitsVec 1, addr, dat)
-mem_write_sig_gen _  _ (addr, dat) = (MkBitsVec 0, addr, dat)
+mem_write_en_gen: BitsVec 1 -> OP -> BitsVec 1
+mem_write_en_gen (MkBitsVec 1) (S2 _) = MkBitsVec 1
+mem_write_en_gen (MkBitsVec 0) (S1 _) = MkBitsVec 1
+mem_write_en_gen _  _ = MkBitsVec 0
 
 pc_sig_gen: BitsVec 1 -> OP 
          -> (BitsVec 32, BitsVec 32)
@@ -258,10 +253,22 @@ pc_sig_gen (MkBitsVec 0) (S2 _) (pc_, r_addr) = r_addr
 pc_sig_gen (MkBitsVec 0) (I2 _) (pc_, r_addr) = r_addr
 pc_sig_gen _ _ (pc_, r_addr) = pc_
 
+
 rv32i : LinContext () ContextExt -@ LinContext () ContextExt
-rv32i (MkLC () ctx) = 
-  let MkLC (opc, op1, op2, rs2, rd, imm, pc_, addr, mem_data, sign_) ctx' 
-        = (read_fn2 <<< read_fn1) (MkLC () ctx)
+rv32i (MkLC () (mem_ctx # regf # temp_ctx)) = 
+  let MkLC (addr, mem_data) mem_ctx' = read_fn1 $ MkLC () mem_ctx
+      
+      (MkInst opc1 rs1 rs2' rd' imm) = decode mem_data
+      
+      MkLC (opc2, r', pc_2, sign_) temp_ctx' = read_fn2' $ MkLC () temp_ctx
+      
+      rs2: BitsVec 5  = sel sign_ r' rs2'
+      
+      MkLC (op1, op2) regf' = read_regf $ MkLC (rs1, rs2) regf
+      
+      pc_: BitsVec 32 = sel sign_ pc_2 addr
+      rd : BitsVec 5  = sel sign_ r' rd'
+      opc: OP         = sel sign_ opc2 opc1
         
       pc_add_4   = pc_ `bv_add_32` (MkBitsVec 4)
       pc_imm     = pc_ `bv_add_32` imm
@@ -274,13 +281,16 @@ rv32i (MkLC () ctx) =
       
       res        = sel_reg_res opc (a_res, mem_data_r, pc_add_4, res_ui)
       pc_'       = sel_pc opc sign_ cmp (pc_, pc_add_4, pc_imm, op1_imm)
+      
       w_addr     = sel_w_addr opc (op1_imm, addr)
       w_dat      = sel_w_dat opc (op2, mem_data_w)
+      w_en = mem_write_en_gen sign_ opc
       
-      mem_write_sig = mem_write_sig_gen sign_ opc (w_addr, w_dat)
       pc_sig = pc_sig_gen sign_ opc (pc_', op1_imm)
       
-  in ((fst >@ id) . write_fn_1 <||> (write_fn_2 sign_ opc)) $ MkLC ((mem_write_sig, pc_sig), (rd, res), (), (), (rs2, rd), pc_') ctx'
+      
+  in ((fst >@ id) . write_fn1 <||> (write_fn2 sign_ opc)) 
+     $ MkLC (((w_en, w_addr, w_dat), pc_sig), (rd, res), (), (), (rs2, rd), pc_') (mem_ctx' # regf' # temp_ctx')
 
 eval: String -> Nat -> IO ()
 eval i_file n = 

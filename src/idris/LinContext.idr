@@ -109,3 +109,24 @@ seq_eval f (MkLC (x :: xs) ctx) = let MkLC y ctx'   = f $ MkLC x ctx
                                       MkLC ys ctx'' = seq_eval f $ MkLC xs ctx'
                                   in MkLC (y::ys) ctx''
 
+seq_eval2 : (read: LinContext a c -@ LinContext b c) 
+         -> (write: LinContext d c -@ LinContext () c)
+         -> LinContext (List a, List d) c -@ LinContext (List b) c
+seq_eval2 read write (MkLC ([], []) ctx) = MkLC [] ctx
+seq_eval2 read write (MkLC ([], (x :: xs)) ctx) = let MkLC _ ctx' = write $ MkLC x ctx 
+                                                      MkLC os ctx'' = seq_eval2 read write $ MkLC ([], xs) ctx'
+                                                  in MkLC os ctx''
+seq_eval2 read write (MkLC ((x :: xs), []) ctx) = let MkLC o ctx' = read $ MkLC x ctx 
+                                                      MkLC os ctx'' = seq_eval2 read write $ MkLC (xs, []) ctx'
+                                                  in MkLC (o::os) ctx''
+seq_eval2 read write (MkLC ((x :: xs), (y :: ys)) ctx) = let MkLC o ctx'  = read $ MkLC x ctx 
+                                                             MkLC _ ctx'' = write $ MkLC y ctx'
+                                                             MkLC os ctx3 = seq_eval2 read write $ MkLC (xs, ys) ctx''
+                                                         in MkLC (o::os) ctx3
+--seq_eval2 r w (MkLC  ctx) =  (((\x => x :: []) >@ id) . r) $ MkLC () ctx
+
+-- seq_eval2 r w (MkLC [] ctx) =  (((\x => x :: []) >@ id) . r) $ MkLC () ctx
+-- seq_eval2 r w (MkLC (x :: xs) ctx) = let f = (fst >@ id) . (r <-> w) . (MkPair () >@ id)
+--                                          MkLC o ctx' = f $ MkLC x ctx
+--                                          MkLC res ctx'' = seq_eval2 r w $ MkLC xs ctx'
+--                                      in MkLC (o::res) ctx''
